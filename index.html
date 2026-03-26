@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clip Wall</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --accent: #a855f7;
+    --accent2: #ec4899;
+    --bg: #080810;
+    --cell-bg: #0f0f1a;
+    --border: rgba(255,255,255,0.06);
+    --text: #ffffff;
+    --muted: rgba(255,255,255,0.35);
+    --gap: 6px;
+    --radius: 6px;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: var(--bg);
+    font-family: 'DM Sans', sans-serif;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    color: var(--text);
+  }
+
+  /* ── GRID ── */
+  #grid {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: var(--gap);
+    padding: var(--gap);
+    transition: opacity 0.5s ease, filter 0.5s ease;
+  }
+
+  #grid.dimmed {
+    opacity: 0.15;
+    filter: blur(2px);
+    pointer-events: none;
+  }
+
+  .cell {
+    position: relative;
+    background: var(--cell-bg);
+    border-radius: var(--radius);
+    overflow: hidden;
+    cursor: pointer;
+    border: 1px solid var(--border);
+  }
+
+  .cell img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.4s ease, opacity 0.4s ease;
+    opacity: 0;
+  }
+
+  .cell img.loaded { opacity: 1; }
+  .cell:hover img { transform: scale(1.04); }
+
+  /* active cell pulse */
+  .cell.active::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: var(--radius);
+    border: 2px solid var(--accent);
+    animation: cellPulse 1s ease infinite alternate;
+    pointer-events: none;
+  }
+
+  @keyframes cellPulse {
+    from { opacity: 0.4; }
+    to   { opacity: 1; }
+  }
+
+  /* play icon overlay on hover */
+  .cell::before {
+    content: '▶';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%) scale(0.7);
+    font-size: 28px;
+    color: white;
+    opacity: 0;
+    transition: opacity 0.2s, transform 0.2s;
+    pointer-events: none;
+    text-shadow: 0 2px 12px rgba(0,0,0,0.8);
+    z-index: 2;
+  }
+  .cell:hover::before { opacity: 0.9; transform: translate(-50%, -50%) scale(1); }
+
+  /* loading shimmer */
+  .cell.loading::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg,
+      transparent 0%, rgba(255,255,255,0.03) 50%, transparent 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s infinite;
+    border-radius: var(--radius);
+    border: none;
+  }
+
+  @keyframes shimmer {
+    from { background-position: -200% 0; }
+    to   { background-position: 200% 0; }
+  }
+
+  /* ── FULLSCREEN OVERLAY ── */
+  #overlay {
+    position: fixed;
+    inset: 0;
+    background: #000;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.5s ease;
+  }
+
+  #overlay.visible {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  #overlay iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: block;
+  }
+
+  /* progress bar at bottom */
+  #clip-progress {
+    position: fixed;
+    bottom: 0; left: 0;
+    height: 3px;
+    width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    z-index: 60;
+    transition: width linear;
+    box-shadow: 0 0 8px var(--accent);
+  }
+
+  /* clip counter */
+  #clip-counter {
+    position: fixed;
+    top: 18px; right: 22px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 16px;
+    letter-spacing: 3px;
+    color: rgba(255,255,255,0.3);
+    z-index: 60;
+    opacity: 0;
+    transition: opacity 0.4s;
+  }
+  #clip-counter.show { opacity: 1; }
+
+  /* skip button */
+  #skip-btn {
+    position: fixed;
+    bottom: 24px; right: 24px;
+    padding: 8px 20px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 4px;
+    color: rgba(255,255,255,0.6);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    letter-spacing: 2px;
+    cursor: pointer;
+    z-index: 60;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.4s, background 0.2s;
+    text-transform: uppercase;
+  }
+  #skip-btn.show { opacity: 1; pointer-events: all; }
+  #skip-btn:hover { background: rgba(255,255,255,0.15); }
+
+  /* ── SETTINGS ── */
+  #settings-btn {
+    position: fixed;
+    top: 14px; left: 14px;
+    width: 34px; height: 34px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 6px;
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+    z-index: 100;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.2s;
+  }
+  #settings-btn:hover { background: rgba(255,255,255,0.14); }
+
+  #settings-panel {
+    position: fixed;
+    top: 56px; left: 14px;
+    width: 290px;
+    background: rgba(8,8,18,0.97);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 18px;
+    z-index: 100;
+    display: none;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.7);
+  }
+
+  #settings-panel h2 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 15px;
+    letter-spacing: 3px;
+    color: var(--accent);
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+  }
+
+  .sg { margin-bottom: 12px; }
+  .sg label {
+    display: block;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 5px;
+  }
+  .sg input[type="text"],
+  .sg input[type="number"] {
+    width: 100%;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 5px;
+    color: white;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    padding: 6px 10px;
+    outline: none;
+  }
+  .sg input:focus { border-color: var(--accent); }
+  .sg-row { display:flex; gap:8px; }
+  .sg-row .sg { flex:1; }
+
+  .sg input[type="color"] {
+    width:100%; height:30px;
+    border:1px solid rgba(255,255,255,0.08);
+    border-radius:5px;
+    background:none; padding:2px; cursor:pointer;
+  }
+
+  .sa { display:flex; gap:7px; margin-top:14px; }
+  .sbtn {
+    flex:1; padding:8px;
+    border:none; border-radius:5px;
+    font-family:'DM Sans',sans-serif;
+    font-size:12px; letter-spacing:1px;
+    text-transform:uppercase;
+    cursor:pointer; font-weight:500;
+    transition:opacity 0.2s;
+  }
+  .sbtn:hover { opacity:0.82; }
+  .sbtn-p { background:var(--accent); color:#fff; }
+  .sbtn-s { background:rgba(255,255,255,0.08); color:#fff; border:1px solid rgba(255,255,255,0.12); }
+  .sbtn-t { background:linear-gradient(90deg,var(--accent),var(--accent2)); color:#fff; width:100%; margin-top:7px; }
+
+  /* status dot */
+  #status {
+    position: fixed;
+    bottom: 14px; left: 14px;
+    display: flex; align-items: center; gap: 6px;
+    font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--muted);
+    z-index: 60;
+  }
+  #status-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #444;
+    transition: background 0.4s;
+  }
+  #status-dot.live { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
+  #status-dot.err  { background: #ef4444; }
+</style>
+</head>
+<body>
+
+<button id="settings-btn" title="Settings">⚙️</button>
+
+<div id="settings-panel">
+  <h2>Clip Wall Config</h2>
+
+  <div class="sg">
+    <label>Channel Name</label>
+    <input type="text" id="cfg-channel" placeholder="your_channel" />
+  </div>
+  <div class="sg">
+    <label>Client ID</label>
+    <input type="text" id="cfg-clientid" placeholder="Twitch app client ID" />
+  </div>
+  <div class="sg">
+    <label>OAuth Token</label>
+    <input type="text" id="cfg-token" placeholder="oauth:xxxxxxxxxx" />
+  </div>
+  <div class="sg-row">
+    <div class="sg">
+      <label>Clip Duration (s)</label>
+      <input type="number" id="cfg-duration" value="30" min="5" max="120" />
+    </div>
+    <div class="sg">
+      <label>Rotate Grid Every</label>
+      <input type="number" id="cfg-rotate" value="3" min="1" max="10" title="After N clips, shuffle the grid" />
+    </div>
+  </div>
+  <div class="sg-row">
+    <div class="sg">
+      <label>Accent Color</label>
+      <input type="color" id="cfg-accent" value="#a855f7" />
+    </div>
+    <div class="sg">
+      <label>Accent 2</label>
+      <input type="color" id="cfg-accent2" value="#ec4899" />
+    </div>
+  </div>
+
+  <div class="sa">
+    <button class="sbtn sbtn-p" onclick="saveSettings()">Save</button>
+    <button class="sbtn sbtn-s" onclick="toggleSettings()">Close</button>
+  </div>
+  <button class="sbtn sbtn-t" onclick="startDemo()">▶ Demo with placeholders</button>
+</div>
+
+<!-- 3x3 grid -->
+<div id="grid"></div>
+
+<!-- Fullscreen clip player -->
+<div id="overlay">
+  <iframe id="clip-frame" allowfullscreen allow="autoplay"></iframe>
+</div>
+
+<div id="clip-progress"></div>
+<div id="clip-counter"></div>
+<button id="skip-btn" onclick="nextClip()">Skip ›</button>
+
+<div id="status">
+  <div id="status-dot"></div>
+  <span id="status-txt">Not connected</span>
+</div>
+
+<script>
+  // ── CONFIG ──
+  let cfg = {
+    channel: '',
+    clientId: '',
+    token: '',
+    clipDuration: 30,
+    rotateEvery: 3,
+    accent: '#a855f7',
+    accent2: '#ec4899',
+  };
+
+  // ── STATE ──
+  let clips = [];
+  let gridClips = [];    // current 9 shown in grid
+  let currentIdx = 0;
+  let clipsPlayed = 0;
+  let progressTimer = null;
+  let progressStart = null;
+  let progressDur = 0;
+
+  // ── SETTINGS ──
+  function toggleSettings() {
+    const p = document.getElementById('settings-panel');
+    p.style.display = p.style.display === 'block' ? 'none' : 'block';
+    if (p.style.display === 'block') loadSettingsUI();
+  }
+  document.getElementById('settings-btn').addEventListener('click', toggleSettings);
+
+  function loadSettingsUI() {
+    document.getElementById('cfg-channel').value  = cfg.channel;
+    document.getElementById('cfg-clientid').value = cfg.clientId;
+    document.getElementById('cfg-token').value    = cfg.token;
+    document.getElementById('cfg-duration').value = cfg.clipDuration;
+    document.getElementById('cfg-rotate').value   = cfg.rotateEvery;
+    document.getElementById('cfg-accent').value   = cfg.accent;
+    document.getElementById('cfg-accent2').value  = cfg.accent2;
+  }
+
+  function saveSettings() {
+    cfg.channel     = document.getElementById('cfg-channel').value.trim();
+    cfg.clientId    = document.getElementById('cfg-clientid').value.trim();
+    cfg.token       = document.getElementById('cfg-token').value.trim();
+    cfg.clipDuration= parseInt(document.getElementById('cfg-duration').value) || 30;
+    cfg.rotateEvery = parseInt(document.getElementById('cfg-rotate').value) || 3;
+    cfg.accent      = document.getElementById('cfg-accent').value;
+    cfg.accent2     = document.getElementById('cfg-accent2').value;
+    applyTheme();
+    localStorage.setItem('clipwall-cfg', JSON.stringify(cfg));
+    document.getElementById('settings-panel').style.display = 'none';
+    if (cfg.channel && cfg.clientId && cfg.token) fetchClips();
+  }
+
+  function loadSavedSettings() {
+    const s = localStorage.getItem('clipwall-cfg');
+    if (s) cfg = { ...cfg, ...JSON.parse(s) };
+    applyTheme();
+  }
+
+  function applyTheme() {
+    document.documentElement.style.setProperty('--accent',  cfg.accent);
+    document.documentElement.style.setProperty('--accent2', cfg.accent2);
+  }
+
+  // ── STATUS ──
+  function setStatus(state, txt) {
+    document.getElementById('status-dot').className = state;
+    document.getElementById('status-txt').textContent = txt;
+  }
+
+  // ── FETCH CLIPS ──
+  async function fetchClips() {
+    setStatus('', 'Fetching clips…');
+    try {
+      const token = cfg.token.replace('oauth:', '');
+      const userRes = await fetch(`https://api.twitch.tv/helix/users?login=${cfg.channel}`, {
+        headers: { 'Authorization': `Bearer ${token}`, 'Client-Id': cfg.clientId }
+      });
+      const userData = await userRes.json();
+      const userId = userData.data?.[0]?.id;
+      if (!userId) throw new Error('User not found');
+
+      // Fetch top clips + recent clips, merge and shuffle
+      const [topRes, recentRes] = await Promise.all([
+        fetch(`https://api.twitch.tv/helix/clips?broadcaster_id=${userId}&first=50`, {
+          headers: { 'Authorization': `Bearer ${token}`, 'Client-Id': cfg.clientId }
+        }),
+        fetch(`https://api.twitch.tv/helix/clips?broadcaster_id=${userId}&first=50&started_at=${new Date(Date.now()-30*24*60*60*1000).toISOString()}`, {
+          headers: { 'Authorization': `Bearer ${token}`, 'Client-Id': cfg.clientId }
+        })
+      ]);
+
+      const topData    = await topRes.json();
+      const recentData = await recentRes.json();
+      const all = [...(topData.data||[]), ...(recentData.data||[])];
+
+      // Deduplicate by id
+      const seen = new Set();
+      clips = all.filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
+      clips = shuffle(clips);
+
+      if (!clips.length) throw new Error('No clips found');
+      setStatus('live', `${clips.length} clips loaded`);
+      buildGrid();
+      startPlayback();
+    } catch (e) {
+      setStatus('err', 'Error: ' + e.message);
+    }
+  }
+
+  function shuffle(arr) {
+    const a = [...arr];
+    for (let i = a.length-1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i+1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  // ── GRID ──
+  function buildGrid(animated = false) {
+    if (!clips.length) return;
+    gridClips = shuffle(clips).slice(0, 9);
+    const grid = document.getElementById('grid');
+    grid.innerHTML = '';
+    gridClips.forEach((clip, i) => {
+      const cell = document.createElement('div');
+      cell.className = 'cell loading';
+      cell.dataset.idx = i;
+      cell.onclick = () => playClip(i);
+
+      const img = document.createElement('img');
+      img.onload = () => {
+        img.classList.add('loaded');
+        cell.classList.remove('loading');
+        if (animated) {
+          img.style.opacity = '0';
+          setTimeout(() => { img.style.transition = 'opacity 0.6s ease'; img.style.opacity = '1'; }, i * 60);
+        }
+      };
+      img.onerror = () => {
+        cell.classList.remove('loading');
+        cell.style.background = '#111';
+      };
+      img.src = clip.thumbnail_url || '';
+      img.alt = '';
+      cell.appendChild(img);
+      grid.appendChild(cell);
+    });
+  }
+
+  function rotateCellThumbnail(cellIdx, clip) {
+    const cells = document.querySelectorAll('.cell');
+    const cell = cells[cellIdx];
+    if (!cell) return;
+    const img = cell.querySelector('img');
+    if (!img) return;
+    img.style.transition = 'opacity 0.4s';
+    img.style.opacity = '0';
+    setTimeout(() => {
+      img.src = clip.thumbnail_url || '';
+      img.onload = () => { img.style.opacity = '1'; };
+    }, 400);
+  }
+
+  function highlightCell(idx) {
+    document.querySelectorAll('.cell').forEach(c => c.classList.remove('active'));
+    const cells = document.querySelectorAll('.cell');
+    if (cells[idx]) cells[idx].classList.add('active');
+  }
+
+  // ── PLAYBACK ──
+  function startPlayback() {
+    currentIdx = 0;
+    clipsPlayed = 0;
+    playClip(0);
+  }
+
+  function playClip(gridIdx) {
+    if (!gridClips.length) return;
+    currentIdx = gridIdx;
+    const clip = gridClips[gridIdx];
+    highlightCell(gridIdx);
+
+    // Show overlay
+    const overlay = document.getElementById('overlay');
+    const frame   = document.getElementById('clip-frame');
+    const grid    = document.getElementById('grid');
+    const counter = document.getElementById('clip-counter');
+    const skipBtn = document.getElementById('skip-btn');
+
+    // Fade in overlay
+    overlay.classList.add('visible');
+    grid.classList.add('dimmed');
+    counter.classList.add('show');
+    skipBtn.classList.add('show');
+    counter.textContent = `${clipsPlayed + 1} / ${clips.length}`;
+
+    // Build embed URL — Twitch clip embed
+    const embedUrl = `https://clips.twitch.tv/embed?clip=${clip.id}&parent=${location.hostname || 'localhost'}&autoplay=true&muted=false`;
+    frame.src = embedUrl;
+
+    // Progress bar
+    startProgressBar(cfg.clipDuration * 1000);
+  }
+
+  function nextClip() {
+    clearProgressBar();
+    clipsPlayed++;
+
+    // Every N clips, rotate one random grid cell
+    if (clipsPlayed % cfg.rotateEvery === 0) {
+      const unusedClips = clips.filter(c => !gridClips.includes(c));
+      if (unusedClips.length) {
+        const newClip = unusedClips[Math.floor(Math.random() * unusedClips.length)];
+        const replaceIdx = Math.floor(Math.random() * 9);
+        gridClips[replaceIdx] = newClip;
+        rotateCellThumbnail(replaceIdx, newClip);
+      }
+    }
+
+    // Fade out overlay, then play next
+    const overlay = document.getElementById('overlay');
+    const frame   = document.getElementById('clip-frame');
+    const grid    = document.getElementById('grid');
+    const counter = document.getElementById('clip-counter');
+    const skipBtn = document.getElementById('skip-btn');
+
+    overlay.classList.remove('visible');
+    grid.classList.remove('dimmed');
+    counter.classList.remove('show');
+    skipBtn.classList.remove('show');
+
+    setTimeout(() => {
+      frame.src = '';
+      // Pick next clip — avoid repeating current
+      let nextIdx;
+      do { nextIdx = Math.floor(Math.random() * gridClips.length); }
+      while (nextIdx === currentIdx && gridClips.length > 1);
+      setTimeout(() => playClip(nextIdx), 800);
+    }, 500);
+  }
+
+  // ── PROGRESS BAR ──
+  function startProgressBar(ms) {
+    progressDur = ms;
+    progressStart = performance.now();
+    const bar = document.getElementById('clip-progress');
+    bar.style.transition = 'none';
+    bar.style.width = '0%';
+
+    function tick(now) {
+      const elapsed = now - progressStart;
+      const pct = Math.min(elapsed / progressDur * 100, 100);
+      bar.style.width = pct + '%';
+      if (pct < 100) {
+        progressTimer = requestAnimationFrame(tick);
+      } else {
+        nextClip();
+      }
+    }
+    progressTimer = requestAnimationFrame(tick);
+  }
+
+  function clearProgressBar() {
+    if (progressTimer) cancelAnimationFrame(progressTimer);
+    const bar = document.getElementById('clip-progress');
+    bar.style.width = '0%';
+  }
+
+  // ── DEMO MODE (placeholder thumbnails) ──
+  function startDemo() {
+    document.getElementById('settings-panel').style.display = 'none';
+    // Generate fake clips using placeholder images
+    clips = Array.from({ length: 27 }, (_, i) => ({
+      id: 'demo_' + i,
+      title: 'Demo Clip ' + (i+1),
+      thumbnail_url: `https://picsum.photos/seed/clip${i}/320/180`,
+      embed_url: '',
+    }));
+    setStatus('live', 'Demo mode — ' + clips.length + ' placeholder clips');
+    buildGrid(true);
+
+    // In demo mode, just cycle thumbnails without actual video
+    demoMode();
+  }
+
+  function demoMode() {
+    currentIdx = 0;
+    clipsPlayed = 0;
+
+    function cycleDemo() {
+      if (!gridClips.length) return;
+      highlightCell(currentIdx);
+
+      // Show overlay with a placeholder instead of real video
+      const overlay = document.getElementById('overlay');
+      const frame   = document.getElementById('clip-frame');
+      const grid    = document.getElementById('grid');
+      const counter = document.getElementById('clip-counter');
+      const skipBtn = document.getElementById('skip-btn');
+
+      // Replace iframe with an image for demo
+      frame.style.display = 'none';
+      let demoImg = document.getElementById('demo-img');
+      if (!demoImg) {
+        demoImg = document.createElement('img');
+        demoImg.id = 'demo-img';
+        demoImg.style.cssText = 'width:100%;height:100%;object-fit:contain;position:absolute;top:0;left:0';
+        overlay.appendChild(demoImg);
+      }
+      demoImg.src = gridClips[currentIdx].thumbnail_url;
+
+      overlay.classList.add('visible');
+      grid.classList.add('dimmed');
+      counter.classList.add('show');
+      skipBtn.classList.add('show');
+      counter.textContent = `${clipsPlayed + 1} / ${clips.length}`;
+
+      startProgressBar(5000); // 5s per demo clip
+    }
+
+    // Override nextClip for demo
+    window._origNextClip = window.nextClip;
+    window.nextClip = function() {
+      clearProgressBar();
+      clipsPlayed++;
+
+      if (clipsPlayed % cfg.rotateEvery === 0) {
+        const unusedClips = clips.filter(c => !gridClips.includes(c));
+        if (unusedClips.length) {
+          const newClip = unusedClips[Math.floor(Math.random() * unusedClips.length)];
+          const replaceIdx = Math.floor(Math.random() * 9);
+          gridClips[replaceIdx] = newClip;
+          rotateCellThumbnail(replaceIdx, newClip);
+        }
+      }
+
+      const overlay = document.getElementById('overlay');
+      const grid    = document.getElementById('grid');
+      const counter = document.getElementById('clip-counter');
+      const skipBtn = document.getElementById('skip-btn');
+
+      overlay.classList.remove('visible');
+      grid.classList.remove('dimmed');
+      counter.classList.remove('show');
+      skipBtn.classList.remove('show');
+
+      setTimeout(() => {
+        let nextIdx;
+        do { nextIdx = Math.floor(Math.random() * gridClips.length); }
+        while (nextIdx === currentIdx && gridClips.length > 1);
+        currentIdx = nextIdx;
+        setTimeout(cycleDemo, 800);
+      }, 500);
+    };
+
+    cycleDemo();
+  }
+
+  // ── INIT ──
+  loadSavedSettings();
+  if (cfg.channel && cfg.clientId && cfg.token) fetchClips();
+</script>
+</body>
+</html>
