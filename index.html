@@ -157,8 +157,8 @@
   #grid {
     position:fixed; inset:0;
     display:grid;
-    grid-template-columns:repeat(3,1fr);
-    grid-template-rows:repeat(3,1fr);
+    grid-template-columns:repeat(1,1fr);
+    grid-template-rows:repeat(1,1fr);
     gap:var(--gap); padding:var(--gap);
     transition:opacity 0.5s, filter 0.5s;
   }
@@ -610,7 +610,7 @@
   // ── GRID ──
   function buildGrid(animated=false) {
     if (!clips.length) return;
-    gridClips = shuffle(clips).slice(0,9);
+    gridClips = shuffle(clips).slice(0,1);
     const grid = document.getElementById('grid');
     grid.innerHTML = '';
     gridClips.forEach((clip,i) => {
@@ -666,7 +666,7 @@
       const unused = clips.filter(c=>!gridClips.includes(c));
       if (unused.length) {
         const nc = unused[Math.floor(Math.random()*unused.length)];
-        const ri = Math.floor(Math.random()*9);
+        const ri = 0;
         gridClips[ri] = nc; rotateCellThumbnail(ri, nc);
       }
     }
