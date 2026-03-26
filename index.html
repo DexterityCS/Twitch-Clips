@@ -12,406 +12,553 @@
     --bg: #080810;
     --cell-bg: #0f0f1a;
     --border: rgba(255,255,255,0.06);
-    --text: #ffffff;
     --muted: rgba(255,255,255,0.35);
     --gap: 6px;
     --radius: 6px;
   }
-
   * { margin:0; padding:0; box-sizing:border-box; }
-
   body {
-    background: var(--bg);
-    font-family: 'DM Sans', sans-serif;
-    width: 100vw;
-    height: 100vh;
-    overflow: hidden;
-    color: var(--text);
+    background: var(--bg); font-family: 'DM Sans', sans-serif;
+    width:100vw; height:100vh; overflow:hidden; color:#fff;
   }
+
+  /* ── SCREENS ── */
+  .screen {
+    position: fixed; inset:0;
+    display: flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    background: var(--bg); z-index:200;
+  }
+  .screen.hidden { display:none; }
+
+  .card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px; padding: 44px 48px;
+    display: flex; flex-direction:column;
+    align-items:center; gap:22px;
+    max-width:440px; width:90%;
+  }
+
+  .logo {
+    width:50px; height:50px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius:13px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:24px;
+  }
+
+  .card-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size:30px; letter-spacing:4px; line-height:1;
+  }
+
+  .card-sub {
+    font-size:13px; color:var(--muted);
+    text-align:center; line-height:1.65;
+    margin-top:-8px;
+  }
+
+  /* step indicator */
+  .steps {
+    display:flex; gap:6px; align-items:center;
+  }
+  .step-dot {
+    width:6px; height:6px; border-radius:50%;
+    background: rgba(255,255,255,0.15);
+    transition: background 0.3s;
+  }
+  .step-dot.active { background: var(--accent); width:18px; border-radius:3px; }
+  .step-dot.done   { background: rgba(255,255,255,0.35); }
+
+  /* input group */
+  .input-group { width:100%; }
+  .input-group label {
+    display:block; font-size:10px; letter-spacing:2px;
+    text-transform:uppercase; color:var(--muted); margin-bottom:6px;
+  }
+  .input-group input {
+    width:100%; background:rgba(255,255,255,0.05);
+    border:1px solid rgba(255,255,255,0.1);
+    border-radius:8px; color:#fff;
+    font-family:'DM Sans',sans-serif; font-size:14px;
+    padding:11px 14px; outline:none;
+    transition: border-color 0.2s;
+  }
+  .input-group input:focus { border-color: var(--accent); }
+  .input-group input.error { border-color:#ef4444; }
+  .input-hint {
+    font-size:11px; color:rgba(255,255,255,0.2);
+    margin-top:6px; line-height:1.5;
+  }
+  .input-hint a { color:rgba(168,85,247,0.7); text-decoration:none; }
+  .input-hint a:hover { color:var(--accent); }
+  .error-msg {
+    font-size:11px; color:#ef4444;
+    margin-top:5px; display:none;
+  }
+  .error-msg.show { display:block; }
+
+  /* buttons */
+  .btn-primary {
+    width:100%; padding:13px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color:#fff; border:none; border-radius:8px;
+    font-family:'DM Sans',sans-serif; font-size:15px; font-weight:500;
+    cursor:pointer; transition:opacity 0.2s, transform 0.1s;
+    letter-spacing:0.3px;
+  }
+  .btn-primary:hover { opacity:0.88; }
+  .btn-primary:active { transform:scale(0.98); }
+  .btn-primary:disabled { opacity:0.4; cursor:not-allowed; }
+
+  .btn-twitch {
+    width:100%; padding:13px;
+    background:#9146ff; color:#fff; border:none; border-radius:8px;
+    font-family:'DM Sans',sans-serif; font-size:15px; font-weight:500;
+    cursor:pointer; transition:background 0.2s, transform 0.1s;
+    display:flex; align-items:center; justify-content:center; gap:10px;
+  }
+  .btn-twitch:hover { background:#7c2fef; }
+  .btn-twitch:active { transform:scale(0.98); }
+
+  .btn-ghost {
+    background:none; border:none; color:rgba(255,255,255,0.3);
+    font-family:'DM Sans',sans-serif; font-size:12px;
+    cursor:pointer; letter-spacing:1px; padding:4px 8px;
+    transition:color 0.2s;
+  }
+  .btn-ghost:hover { color:rgba(255,255,255,0.6); }
+
+  .twitch-icon { width:20px; height:20px; fill:white; flex-shrink:0; }
+
+  .divider {
+    width:100%; border:none;
+    border-top:1px solid rgba(255,255,255,0.07);
+  }
+
+  .fine-print {
+    font-size:11px; color:rgba(255,255,255,0.18);
+    text-align:center; line-height:1.5;
+  }
+
+  /* loading spinner */
+  .spinner {
+    width:20px; height:20px;
+    border:2px solid rgba(255,255,255,0.15);
+    border-top-color: var(--accent);
+    border-radius:50%;
+    animation: spin 0.7s linear infinite;
+    flex-shrink:0;
+  }
+  @keyframes spin { to{transform:rotate(360deg)} }
 
   /* ── GRID ── */
   #grid {
-    position: fixed;
-    inset: 0;
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    grid-template-rows: repeat(3, 1fr);
-    gap: var(--gap);
-    padding: var(--gap);
-    transition: opacity 0.5s ease, filter 0.5s ease;
+    position:fixed; inset:0;
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    grid-template-rows:repeat(3,1fr);
+    gap:var(--gap); padding:var(--gap);
+    transition:opacity 0.5s, filter 0.5s;
   }
-
-  #grid.dimmed {
-    opacity: 0.15;
-    filter: blur(2px);
-    pointer-events: none;
-  }
-
+  #grid.dimmed { opacity:0.15; filter:blur(2px); pointer-events:none; }
   .cell {
-    position: relative;
-    background: var(--cell-bg);
-    border-radius: var(--radius);
-    overflow: hidden;
-    cursor: pointer;
-    border: 1px solid var(--border);
+    position:relative; background:var(--cell-bg);
+    border-radius:var(--radius); overflow:hidden;
+    cursor:pointer; border:1px solid var(--border);
   }
-
   .cell img {
-    width: 100%; height: 100%;
-    object-fit: cover;
-    display: block;
-    transition: transform 0.4s ease, opacity 0.4s ease;
-    opacity: 0;
+    width:100%; height:100%; object-fit:cover; display:block;
+    transition:transform 0.4s, opacity 0.4s; opacity:0;
   }
-
-  .cell img.loaded { opacity: 1; }
-  .cell:hover img { transform: scale(1.04); }
-
-  /* active cell pulse */
+  .cell img.loaded { opacity:1; }
+  .cell:hover img { transform:scale(1.04); }
   .cell.active::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: var(--radius);
-    border: 2px solid var(--accent);
-    animation: cellPulse 1s ease infinite alternate;
-    pointer-events: none;
+    content:''; position:absolute; inset:0;
+    border-radius:var(--radius); border:2px solid var(--accent);
+    animation:pulse 1s ease infinite alternate; pointer-events:none;
   }
-
-  @keyframes cellPulse {
-    from { opacity: 0.4; }
-    to   { opacity: 1; }
-  }
-
-  /* play icon overlay on hover */
+  @keyframes pulse { from{opacity:0.4} to{opacity:1} }
   .cell::before {
-    content: '▶';
-    position: absolute;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%) scale(0.7);
-    font-size: 28px;
-    color: white;
-    opacity: 0;
-    transition: opacity 0.2s, transform 0.2s;
-    pointer-events: none;
-    text-shadow: 0 2px 12px rgba(0,0,0,0.8);
-    z-index: 2;
+    content:'▶'; position:absolute; top:50%; left:50%;
+    transform:translate(-50%,-50%) scale(0.7);
+    font-size:28px; color:#fff; opacity:0;
+    transition:opacity 0.2s, transform 0.2s;
+    pointer-events:none; text-shadow:0 2px 12px rgba(0,0,0,0.8); z-index:2;
   }
-  .cell:hover::before { opacity: 0.9; transform: translate(-50%, -50%) scale(1); }
-
-  /* loading shimmer */
+  .cell:hover::before { opacity:0.9; transform:translate(-50%,-50%) scale(1); }
   .cell.loading::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(90deg,
-      transparent 0%, rgba(255,255,255,0.03) 50%, transparent 100%);
-    background-size: 200% 100%;
-    animation: shimmer 1.4s infinite;
-    border-radius: var(--radius);
-    border: none;
+    content:''; position:absolute; inset:0;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,0.03),transparent);
+    background-size:200% 100%; animation:shimmer 1.4s infinite;
+    border-radius:var(--radius); border:none;
   }
+  @keyframes shimmer { from{background-position:-200% 0} to{background-position:200% 0} }
 
-  @keyframes shimmer {
-    from { background-position: -200% 0; }
-    to   { background-position: 200% 0; }
-  }
-
-  /* ── FULLSCREEN OVERLAY ── */
+  /* ── OVERLAY ── */
   #overlay {
-    position: fixed;
-    inset: 0;
-    background: #000;
-    z-index: 50;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.5s ease;
+    position:fixed; inset:0; background:#000; z-index:50;
+    opacity:0; pointer-events:none; transition:opacity 0.5s;
   }
+  #overlay.visible { opacity:1; pointer-events:all; }
+  #overlay iframe { width:100%; height:100%; border:none; display:block; }
 
-  #overlay.visible {
-    opacity: 1;
-    pointer-events: all;
-  }
-
-  #overlay iframe {
-    width: 100%;
-    height: 100%;
-    border: none;
-    display: block;
-  }
-
-  /* progress bar at bottom */
   #clip-progress {
-    position: fixed;
-    bottom: 0; left: 0;
-    height: 3px;
-    width: 0%;
-    background: linear-gradient(90deg, var(--accent), var(--accent2));
-    z-index: 60;
-    transition: width linear;
-    box-shadow: 0 0 8px var(--accent);
+    position:fixed; bottom:0; left:0; height:3px; width:0%;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));
+    z-index:60; box-shadow:0 0 8px var(--accent);
   }
-
-  /* clip counter */
   #clip-counter {
-    position: fixed;
-    top: 18px; right: 22px;
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 16px;
-    letter-spacing: 3px;
-    color: rgba(255,255,255,0.3);
-    z-index: 60;
-    opacity: 0;
-    transition: opacity 0.4s;
+    position:fixed; top:18px; right:22px;
+    font-family:'Bebas Neue',sans-serif; font-size:16px;
+    letter-spacing:3px; color:rgba(255,255,255,0.3);
+    z-index:60; opacity:0; transition:opacity 0.4s;
   }
-  #clip-counter.show { opacity: 1; }
-
-  /* skip button */
+  #clip-counter.show { opacity:1; }
   #skip-btn {
-    position: fixed;
-    bottom: 24px; right: 24px;
-    padding: 8px 20px;
-    background: rgba(255,255,255,0.08);
-    border: 1px solid rgba(255,255,255,0.15);
-    border-radius: 4px;
-    color: rgba(255,255,255,0.6);
-    font-family: 'DM Sans', sans-serif;
-    font-size: 13px;
-    letter-spacing: 2px;
-    cursor: pointer;
-    z-index: 60;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.4s, background 0.2s;
-    text-transform: uppercase;
+    position:fixed; bottom:24px; right:24px;
+    padding:8px 20px;
+    background:rgba(255,255,255,0.08);
+    border:1px solid rgba(255,255,255,0.15);
+    border-radius:4px; color:rgba(255,255,255,0.6);
+    font-family:'DM Sans',sans-serif; font-size:13px;
+    letter-spacing:2px; text-transform:uppercase;
+    cursor:pointer; z-index:60;
+    opacity:0; pointer-events:none; transition:opacity 0.4s, background 0.2s;
   }
-  #skip-btn.show { opacity: 1; pointer-events: all; }
-  #skip-btn:hover { background: rgba(255,255,255,0.15); }
+  #skip-btn.show { opacity:1; pointer-events:all; }
+  #skip-btn:hover { background:rgba(255,255,255,0.15); }
+
+  /* ── TOP BAR ── */
+  #topbar {
+    position:fixed; top:0; left:0; right:0; height:48px;
+    display:none; align-items:center; justify-content:space-between;
+    padding:0 14px; z-index:90;
+    background:linear-gradient(to bottom,rgba(8,8,16,0.9),transparent);
+  }
+  #topbar.show { display:flex; }
+  #user-info { display:flex; align-items:center; gap:9px; }
+  #user-avatar {
+    width:28px; height:28px; border-radius:50%;
+    border:1.5px solid rgba(255,255,255,0.15); object-fit:cover;
+  }
+  #user-name { font-size:13px; font-weight:500; color:rgba(255,255,255,0.7); }
+  #topbar-right { display:flex; gap:8px; align-items:center; }
+  .top-btn {
+    padding:5px 12px;
+    background:rgba(255,255,255,0.06);
+    border:1px solid rgba(255,255,255,0.1);
+    border-radius:5px; color:rgba(255,255,255,0.5);
+    font-family:'DM Sans',sans-serif; font-size:11px;
+    letter-spacing:1.5px; text-transform:uppercase;
+    cursor:pointer; transition:background 0.2s, color 0.2s;
+  }
+  .top-btn:hover { background:rgba(255,255,255,0.12); color:#fff; }
 
   /* ── SETTINGS ── */
-  #settings-btn {
-    position: fixed;
-    top: 14px; left: 14px;
-    width: 34px; height: 34px;
-    background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.12);
-    border-radius: 6px;
-    color: white;
-    font-size: 16px;
-    cursor: pointer;
-    z-index: 100;
-    display: flex; align-items: center; justify-content: center;
-    transition: background 0.2s;
-  }
-  #settings-btn:hover { background: rgba(255,255,255,0.14); }
-
   #settings-panel {
-    position: fixed;
-    top: 56px; left: 14px;
-    width: 290px;
-    background: rgba(8,8,18,0.97);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 10px;
-    padding: 18px;
-    z-index: 100;
-    display: none;
-    backdrop-filter: blur(12px);
-    box-shadow: 0 8px 32px rgba(0,0,0,0.7);
+    position:fixed; top:56px; right:14px; width:260px;
+    background:rgba(8,8,18,0.97);
+    border:1px solid rgba(255,255,255,0.08);
+    border-radius:10px; padding:16px; z-index:100; display:none;
+    backdrop-filter:blur(12px); box-shadow:0 8px 32px rgba(0,0,0,0.7);
   }
-
   #settings-panel h2 {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 15px;
-    letter-spacing: 3px;
-    color: var(--accent);
-    margin-bottom: 14px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid rgba(255,255,255,0.07);
+    font-family:'Bebas Neue',sans-serif; font-size:14px;
+    letter-spacing:3px; color:var(--accent); margin-bottom:12px;
+    padding-bottom:8px; border-bottom:1px solid rgba(255,255,255,0.07);
   }
-
-  .sg { margin-bottom: 12px; }
+  .sg { margin-bottom:10px; }
   .sg label {
-    display: block;
-    font-size: 10px;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 5px;
+    display:block; font-size:10px; letter-spacing:2px;
+    text-transform:uppercase; color:var(--muted); margin-bottom:4px;
   }
-  .sg input[type="text"],
   .sg input[type="number"] {
-    width: 100%;
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 5px;
-    color: white;
-    font-family: 'DM Sans', sans-serif;
-    font-size: 13px;
-    padding: 6px 10px;
-    outline: none;
+    width:100%; background:rgba(255,255,255,0.04);
+    border:1px solid rgba(255,255,255,0.08);
+    border-radius:5px; color:#fff;
+    font-family:'DM Sans',sans-serif; font-size:13px;
+    padding:6px 10px; outline:none;
   }
-  .sg input:focus { border-color: var(--accent); }
+  .sg input:focus { border-color:var(--accent); }
   .sg-row { display:flex; gap:8px; }
   .sg-row .sg { flex:1; }
-
   .sg input[type="color"] {
     width:100%; height:30px;
     border:1px solid rgba(255,255,255,0.08);
-    border-radius:5px;
-    background:none; padding:2px; cursor:pointer;
+    border-radius:5px; background:none; padding:2px; cursor:pointer;
   }
-
-  .sa { display:flex; gap:7px; margin-top:14px; }
+  .sa { display:flex; gap:7px; margin-top:12px; }
   .sbtn {
-    flex:1; padding:8px;
-    border:none; border-radius:5px;
-    font-family:'DM Sans',sans-serif;
-    font-size:12px; letter-spacing:1px;
-    text-transform:uppercase;
-    cursor:pointer; font-weight:500;
-    transition:opacity 0.2s;
+    flex:1; padding:7px; border:none; border-radius:5px;
+    font-family:'DM Sans',sans-serif; font-size:12px;
+    letter-spacing:1px; text-transform:uppercase;
+    cursor:pointer; font-weight:500; transition:opacity 0.2s;
   }
   .sbtn:hover { opacity:0.82; }
   .sbtn-p { background:var(--accent); color:#fff; }
   .sbtn-s { background:rgba(255,255,255,0.08); color:#fff; border:1px solid rgba(255,255,255,0.12); }
-  .sbtn-t { background:linear-gradient(90deg,var(--accent),var(--accent2)); color:#fff; width:100%; margin-top:7px; }
+  .sbtn-danger { background:rgba(239,68,68,0.15); color:#ef4444; border:1px solid rgba(239,68,68,0.2); }
 
-  /* status dot */
+  /* ── STATUS ── */
   #status {
-    position: fixed;
-    bottom: 14px; left: 14px;
-    display: flex; align-items: center; gap: 6px;
-    font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
-    color: var(--muted);
-    z-index: 60;
+    position:fixed; bottom:14px; left:14px;
+    display:flex; align-items:center; gap:6px;
+    font-size:10px; letter-spacing:2px; text-transform:uppercase;
+    color:var(--muted); z-index:60;
   }
-  #status-dot {
-    width: 6px; height: 6px; border-radius: 50%;
-    background: #444;
-    transition: background 0.4s;
-  }
-  #status-dot.live { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
-  #status-dot.err  { background: #ef4444; }
+  #status-dot { width:6px; height:6px; border-radius:50%; background:#444; transition:background 0.4s; }
+  #status-dot.live { background:#22c55e; box-shadow:0 0 6px #22c55e; }
+  #status-dot.err  { background:#ef4444; }
 </style>
 </head>
 <body>
 
-<button id="settings-btn" title="Settings">⚙️</button>
+<!-- ── STEP 1: CLIENT ID ── -->
+<div class="screen" id="screen-clientid">
+  <div class="card">
+    <div class="logo">📺</div>
+    <div class="card-title">Clip Wall</div>
+    <div class="steps">
+      <div class="step-dot active" id="dot-1"></div>
+      <div class="step-dot" id="dot-2"></div>
+    </div>
+    <div class="card-sub">Enter your Twitch app Client ID to get started. This stays on your device only.</div>
+    <div class="input-group">
+      <label>Twitch Client ID</label>
+      <input type="text" id="input-clientid" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" spellcheck="false" />
+      <div class="input-hint">
+        Get yours at <a href="https://dev.twitch.tv/console/apps" target="_blank">dev.twitch.tv/console/apps</a> →
+        Create app → set OAuth redirect to <strong style="color:rgba(255,255,255,0.4)">this page's URL</strong>
+      </div>
+      <div class="error-msg" id="clientid-error">Please enter a valid Client ID</div>
+    </div>
+    <button class="btn-primary" onclick="submitClientId()">Continue →</button>
+    <button class="btn-ghost" onclick="showHelp()">How do I get a Client ID?</button>
+  </div>
+</div>
+
+<!-- ── STEP 1b: HELP MODAL ── -->
+<div class="screen hidden" id="screen-help">
+  <div class="card" style="gap:16px; max-width:480px;">
+    <div class="card-title" style="font-size:22px; letter-spacing:3px;">Getting a Client ID</div>
+    <div style="width:100%; display:flex; flex-direction:column; gap:12px; font-size:13px; color:rgba(255,255,255,0.65); line-height:1.7;">
+      <div><span style="color:var(--accent); font-weight:500;">1.</span> Go to <a href="https://dev.twitch.tv/console/apps" target="_blank" style="color:var(--accent)">dev.twitch.tv/console/apps</a> and log in</div>
+      <div><span style="color:var(--accent); font-weight:500;">2.</span> Click <strong style="color:#fff">Register Your Application</strong></div>
+      <div><span style="color:var(--accent); font-weight:500;">3.</span> Name it anything (e.g. "My Clip Wall")</div>
+      <div><span style="color:var(--accent); font-weight:500;">4.</span> Set <strong style="color:#fff">OAuth Redirect URL</strong> to:<br>
+        <code style="background:rgba(255,255,255,0.07); padding:4px 10px; border-radius:4px; font-size:12px; color:rgba(255,255,255,0.8); display:inline-block; margin-top:4px; word-break:break-all;" id="help-redirect"></code>
+      </div>
+      <div><span style="color:var(--accent); font-weight:500;">5.</span> Set Category to <strong style="color:#fff">Other</strong></div>
+      <div><span style="color:var(--accent); font-weight:500;">6.</span> Click <strong style="color:#fff">Create</strong> then <strong style="color:#fff">Manage</strong> — copy the <strong style="color:#fff">Client ID</strong></div>
+    </div>
+    <hr class="divider" />
+    <button class="btn-primary" onclick="hideHelp()">Got it →</button>
+  </div>
+</div>
+
+<!-- ── STEP 2: TWITCH LOGIN ── -->
+<div class="screen hidden" id="screen-login">
+  <div class="card">
+    <div class="logo">📺</div>
+    <div class="card-title">Clip Wall</div>
+    <div class="steps">
+      <div class="step-dot done" id="dot-1b"></div>
+      <div class="step-dot active" id="dot-2b"></div>
+    </div>
+    <div class="card-sub">Client ID saved. Now connect your Twitch account to load your clips.</div>
+    <button class="btn-twitch" onclick="twitchLogin()">
+      <svg class="twitch-icon" viewBox="0 0 24 24"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714z"/></svg>
+      Continue with Twitch
+    </button>
+    <button class="btn-ghost" onclick="resetClientId()">← Change Client ID</button>
+    <div class="fine-print">Read-only access to your clips. Nothing stored on any server.</div>
+  </div>
+</div>
+
+<!-- ── APP ── -->
+<div id="topbar">
+  <div id="user-info">
+    <img id="user-avatar" src="" alt="" />
+    <span id="user-name"></span>
+  </div>
+  <div id="topbar-right">
+    <button class="top-btn" onclick="toggleSettings()">⚙ Settings</button>
+    <button class="top-btn" onclick="logout()">Log out</button>
+  </div>
+</div>
 
 <div id="settings-panel">
-  <h2>Clip Wall Config</h2>
-
-  <div class="sg">
-    <label>Channel Name</label>
-    <input type="text" id="cfg-channel" placeholder="your_channel" />
-  </div>
-  <div class="sg">
-    <label>Client ID</label>
-    <input type="text" id="cfg-clientid" placeholder="Twitch app client ID" />
-  </div>
-  <div class="sg">
-    <label>OAuth Token</label>
-    <input type="text" id="cfg-token" placeholder="oauth:xxxxxxxxxx" />
+  <h2>Clip Wall Settings</h2>
+  <div class="sg-row">
+    <div class="sg"><label>Clip Duration (s)</label><input type="number" id="cfg-duration" value="30" min="5" max="120" /></div>
+    <div class="sg"><label>Rotate Every</label><input type="number" id="cfg-rotate" value="3" min="1" max="20" /></div>
   </div>
   <div class="sg-row">
-    <div class="sg">
-      <label>Clip Duration (s)</label>
-      <input type="number" id="cfg-duration" value="30" min="5" max="120" />
-    </div>
-    <div class="sg">
-      <label>Rotate Grid Every</label>
-      <input type="number" id="cfg-rotate" value="3" min="1" max="10" title="After N clips, shuffle the grid" />
-    </div>
+    <div class="sg"><label>Accent</label><input type="color" id="cfg-accent" value="#a855f7" /></div>
+    <div class="sg"><label>Accent 2</label><input type="color" id="cfg-accent2" value="#ec4899" /></div>
   </div>
-  <div class="sg-row">
-    <div class="sg">
-      <label>Accent Color</label>
-      <input type="color" id="cfg-accent" value="#a855f7" />
-    </div>
-    <div class="sg">
-      <label>Accent 2</label>
-      <input type="color" id="cfg-accent2" value="#ec4899" />
-    </div>
-  </div>
-
   <div class="sa">
     <button class="sbtn sbtn-p" onclick="saveSettings()">Save</button>
     <button class="sbtn sbtn-s" onclick="toggleSettings()">Close</button>
   </div>
-  <button class="sbtn sbtn-t" onclick="startDemo()">▶ Demo with placeholders</button>
+  <div class="sa" style="margin-top:8px;">
+    <button class="sbtn sbtn-danger" onclick="resetClientId(); logout();">Reset Client ID</button>
+  </div>
 </div>
 
-<!-- 3x3 grid -->
 <div id="grid"></div>
-
-<!-- Fullscreen clip player -->
-<div id="overlay">
-  <iframe id="clip-frame" allowfullscreen allow="autoplay"></iframe>
-</div>
-
+<div id="overlay"><iframe id="clip-frame" allowfullscreen allow="autoplay"></iframe></div>
 <div id="clip-progress"></div>
 <div id="clip-counter"></div>
 <button id="skip-btn" onclick="nextClip()">Skip ›</button>
-
-<div id="status">
-  <div id="status-dot"></div>
-  <span id="status-txt">Not connected</span>
-</div>
+<div id="status"><div id="status-dot"></div><span id="status-txt">Not connected</span></div>
 
 <script>
-  // ── CONFIG ──
-  let cfg = {
-    channel: '',
-    clientId: '',
-    token: '',
-    clipDuration: 30,
-    rotateEvery: 3,
-    accent: '#a855f7',
-    accent2: '#ec4899',
-  };
-
   // ── STATE ──
-  let clips = [];
-  let gridClips = [];    // current 9 shown in grid
-  let currentIdx = 0;
-  let clipsPlayed = 0;
-  let progressTimer = null;
-  let progressStart = null;
-  let progressDur = 0;
+  let CLIENT_ID = localStorage.getItem('twitch_client_id') || '';
+  const REDIRECT_URI = location.origin + location.pathname;
+
+  let cfg = { clipDuration:30, rotateEvery:3, accent:'#a855f7', accent2:'#ec4899' };
+  let accessToken = null, userInfo = null;
+  let clips = [], gridClips = [];
+  let currentIdx = 0, clipsPlayed = 0, progressTimer = null;
+
+  // ── SCREEN ROUTING ──
+  function show(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('hidden');
+  }
+
+  // ── CLIENT ID STEP ──
+  function submitClientId() {
+    const val = document.getElementById('input-clientid').value.trim();
+    const err = document.getElementById('clientid-error');
+    const inp = document.getElementById('input-clientid');
+    if (!val || val.length < 10) {
+      inp.classList.add('error');
+      err.classList.add('show');
+      return;
+    }
+    inp.classList.remove('error');
+    err.classList.remove('show');
+    CLIENT_ID = val;
+    localStorage.setItem('twitch_client_id', CLIENT_ID);
+    show('screen-login');
+  }
+
+  // Allow Enter key on input
+  document.getElementById('input-clientid').addEventListener('keydown', e => {
+    if (e.key === 'Enter') submitClientId();
+  });
+
+  function resetClientId() {
+    localStorage.removeItem('twitch_client_id');
+    localStorage.removeItem('twitch_token');
+    localStorage.removeItem('twitch_user');
+    CLIENT_ID = '';
+    accessToken = null; userInfo = null;
+    document.getElementById('input-clientid').value = '';
+    show('screen-clientid');
+  }
+
+  function showHelp() {
+    document.getElementById('help-redirect').textContent = REDIRECT_URI;
+    show('screen-help');
+  }
+  function hideHelp() { show('screen-clientid'); }
+
+  // ── TWITCH AUTH ──
+  function twitchLogin() {
+    const state = Math.random().toString(36).slice(2);
+    sessionStorage.setItem('oauth_state', state);
+    const url = new URL('https://id.twitch.tv/oauth2/authorize');
+    url.searchParams.set('client_id', CLIENT_ID);
+    url.searchParams.set('redirect_uri', REDIRECT_URI);
+    url.searchParams.set('response_type', 'token');
+    url.searchParams.set('scope', 'user:read:email');
+    url.searchParams.set('state', state);
+    location.href = url.toString();
+  }
+
+  function handleOAuthCallback() {
+    const hash = location.hash.slice(1);
+    if (!hash) return false;
+    const params = new URLSearchParams(hash);
+    const token = params.get('access_token');
+    if (!token) return false;
+    history.replaceState(null, '', location.pathname);
+    accessToken = token;
+    localStorage.setItem('twitch_token', token);
+    return true;
+  }
+
+  function logout() {
+    localStorage.removeItem('twitch_token');
+    localStorage.removeItem('twitch_user');
+    accessToken = null; userInfo = null;
+    clips = []; gridClips = [];
+    clearProgressBar();
+    document.getElementById('overlay').classList.remove('visible');
+    document.getElementById('grid').innerHTML = '';
+    document.getElementById('topbar').classList.remove('show');
+    document.getElementById('settings-panel').style.display = 'none';
+    setStatus('', 'Not connected');
+    // Return to login step (client ID already saved)
+    show('screen-login');
+  }
+
+  async function validateToken() {
+    try {
+      const res = await fetch('https://id.twitch.tv/oauth2/validate', {
+        headers: { 'Authorization': `OAuth ${accessToken}` }
+      });
+      return res.ok;
+    } catch { return false; }
+  }
+
+  async function fetchUserInfo() {
+    const cached = localStorage.getItem('twitch_user');
+    if (cached) { userInfo = JSON.parse(cached); return; }
+    const res = await fetch('https://api.twitch.tv/helix/users', {
+      headers: { 'Authorization': `Bearer ${accessToken}`, 'Client-Id': CLIENT_ID }
+    });
+    const data = await res.json();
+    userInfo = data.data?.[0];
+    if (userInfo) localStorage.setItem('twitch_user', JSON.stringify(userInfo));
+  }
+
+  function showApp() {
+    document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+    document.getElementById('topbar').classList.add('show');
+    if (userInfo) {
+      document.getElementById('user-avatar').src = userInfo.profile_image_url || '';
+      document.getElementById('user-name').textContent = userInfo.display_name || userInfo.login;
+    }
+  }
 
   // ── SETTINGS ──
   function toggleSettings() {
     const p = document.getElementById('settings-panel');
     p.style.display = p.style.display === 'block' ? 'none' : 'block';
-    if (p.style.display === 'block') loadSettingsUI();
-  }
-  document.getElementById('settings-btn').addEventListener('click', toggleSettings);
-
-  function loadSettingsUI() {
-    document.getElementById('cfg-channel').value  = cfg.channel;
-    document.getElementById('cfg-clientid').value = cfg.clientId;
-    document.getElementById('cfg-token').value    = cfg.token;
-    document.getElementById('cfg-duration').value = cfg.clipDuration;
-    document.getElementById('cfg-rotate').value   = cfg.rotateEvery;
-    document.getElementById('cfg-accent').value   = cfg.accent;
-    document.getElementById('cfg-accent2').value  = cfg.accent2;
+    if (p.style.display === 'block') {
+      document.getElementById('cfg-duration').value = cfg.clipDuration;
+      document.getElementById('cfg-rotate').value   = cfg.rotateEvery;
+      document.getElementById('cfg-accent').value   = cfg.accent;
+      document.getElementById('cfg-accent2').value  = cfg.accent2;
+    }
   }
 
   function saveSettings() {
-    cfg.channel     = document.getElementById('cfg-channel').value.trim();
-    cfg.clientId    = document.getElementById('cfg-clientid').value.trim();
-    cfg.token       = document.getElementById('cfg-token').value.trim();
-    cfg.clipDuration= parseInt(document.getElementById('cfg-duration').value) || 30;
-    cfg.rotateEvery = parseInt(document.getElementById('cfg-rotate').value) || 3;
-    cfg.accent      = document.getElementById('cfg-accent').value;
-    cfg.accent2     = document.getElementById('cfg-accent2').value;
+    cfg.clipDuration = parseInt(document.getElementById('cfg-duration').value) || 30;
+    cfg.rotateEvery  = parseInt(document.getElementById('cfg-rotate').value) || 3;
+    cfg.accent       = document.getElementById('cfg-accent').value;
+    cfg.accent2      = document.getElementById('cfg-accent2').value;
     applyTheme();
     localStorage.setItem('clipwall-cfg', JSON.stringify(cfg));
     document.getElementById('settings-panel').style.display = 'none';
-    if (cfg.channel && cfg.clientId && cfg.token) fetchClips();
   }
 
   function loadSavedSettings() {
@@ -431,299 +578,163 @@
     document.getElementById('status-txt').textContent = txt;
   }
 
-  // ── FETCH CLIPS ──
+  // ── CLIPS ──
   async function fetchClips() {
-    setStatus('', 'Fetching clips…');
+    setStatus('', 'Loading clips…');
     try {
-      const token = cfg.token.replace('oauth:', '');
-      const userRes = await fetch(`https://api.twitch.tv/helix/users?login=${cfg.channel}`, {
-        headers: { 'Authorization': `Bearer ${token}`, 'Client-Id': cfg.clientId }
-      });
-      const userData = await userRes.json();
-      const userId = userData.data?.[0]?.id;
-      if (!userId) throw new Error('User not found');
-
-      // Fetch top clips + recent clips, merge and shuffle
+      const userId = userInfo.id;
+      const ago30 = new Date(Date.now() - 30*24*60*60*1000).toISOString();
+      const headers = { 'Authorization': `Bearer ${accessToken}`, 'Client-Id': CLIENT_ID };
       const [topRes, recentRes] = await Promise.all([
-        fetch(`https://api.twitch.tv/helix/clips?broadcaster_id=${userId}&first=50`, {
-          headers: { 'Authorization': `Bearer ${token}`, 'Client-Id': cfg.clientId }
-        }),
-        fetch(`https://api.twitch.tv/helix/clips?broadcaster_id=${userId}&first=50&started_at=${new Date(Date.now()-30*24*60*60*1000).toISOString()}`, {
-          headers: { 'Authorization': `Bearer ${token}`, 'Client-Id': cfg.clientId }
-        })
+        fetch(`https://api.twitch.tv/helix/clips?broadcaster_id=${userId}&first=50`, { headers }),
+        fetch(`https://api.twitch.tv/helix/clips?broadcaster_id=${userId}&first=50&started_at=${ago30}`, { headers })
       ]);
-
-      const topData    = await topRes.json();
-      const recentData = await recentRes.json();
-      const all = [...(topData.data||[]), ...(recentData.data||[])];
-
-      // Deduplicate by id
+      const all = [...(await topRes.json()).data||[], ...(await recentRes.json()).data||[]];
       const seen = new Set();
-      clips = all.filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
-      clips = shuffle(clips);
-
-      if (!clips.length) throw new Error('No clips found');
+      clips = shuffle(all.filter(c => { if(seen.has(c.id)) return false; seen.add(c.id); return true; }));
+      if (!clips.length) throw new Error('No clips found for this channel');
       setStatus('live', `${clips.length} clips loaded`);
-      buildGrid();
+      buildGrid(true);
       startPlayback();
-    } catch (e) {
-      setStatus('err', 'Error: ' + e.message);
+    } catch(e) {
+      setStatus('err', e.message);
     }
   }
 
   function shuffle(arr) {
-    const a = [...arr];
-    for (let i = a.length-1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i+1));
-      [a[i], a[j]] = [a[j], a[i]];
-    }
+    const a=[...arr];
+    for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}
     return a;
   }
 
   // ── GRID ──
-  function buildGrid(animated = false) {
+  function buildGrid(animated=false) {
     if (!clips.length) return;
-    gridClips = shuffle(clips).slice(0, 9);
+    gridClips = shuffle(clips).slice(0,9);
     const grid = document.getElementById('grid');
     grid.innerHTML = '';
-    gridClips.forEach((clip, i) => {
+    gridClips.forEach((clip,i) => {
       const cell = document.createElement('div');
       cell.className = 'cell loading';
-      cell.dataset.idx = i;
       cell.onclick = () => playClip(i);
-
       const img = document.createElement('img');
       img.onload = () => {
-        img.classList.add('loaded');
-        cell.classList.remove('loading');
-        if (animated) {
-          img.style.opacity = '0';
-          setTimeout(() => { img.style.transition = 'opacity 0.6s ease'; img.style.opacity = '1'; }, i * 60);
-        }
+        img.classList.add('loaded'); cell.classList.remove('loading');
+        if (animated) { img.style.opacity='0'; setTimeout(()=>{ img.style.transition='opacity 0.6s'; img.style.opacity='1'; }, i*60); }
       };
-      img.onerror = () => {
-        cell.classList.remove('loading');
-        cell.style.background = '#111';
-      };
+      img.onerror = () => cell.classList.remove('loading');
       img.src = clip.thumbnail_url || '';
-      img.alt = '';
-      cell.appendChild(img);
-      grid.appendChild(cell);
+      cell.appendChild(img); grid.appendChild(cell);
     });
   }
 
-  function rotateCellThumbnail(cellIdx, clip) {
-    const cells = document.querySelectorAll('.cell');
-    const cell = cells[cellIdx];
+  function rotateCellThumbnail(idx, clip) {
+    const cell = document.querySelectorAll('.cell')[idx];
     if (!cell) return;
     const img = cell.querySelector('img');
     if (!img) return;
-    img.style.transition = 'opacity 0.4s';
-    img.style.opacity = '0';
-    setTimeout(() => {
-      img.src = clip.thumbnail_url || '';
-      img.onload = () => { img.style.opacity = '1'; };
-    }, 400);
+    img.style.transition='opacity 0.4s'; img.style.opacity='0';
+    setTimeout(()=>{ img.src=clip.thumbnail_url||''; img.onload=()=>{ img.style.opacity='1'; }; }, 400);
   }
 
   function highlightCell(idx) {
-    document.querySelectorAll('.cell').forEach(c => c.classList.remove('active'));
+    document.querySelectorAll('.cell').forEach(c=>c.classList.remove('active'));
     const cells = document.querySelectorAll('.cell');
     if (cells[idx]) cells[idx].classList.add('active');
   }
 
   // ── PLAYBACK ──
-  function startPlayback() {
-    currentIdx = 0;
-    clipsPlayed = 0;
-    playClip(0);
-  }
+  function startPlayback() { currentIdx=0; clipsPlayed=0; playClip(0); }
 
   function playClip(gridIdx) {
     if (!gridClips.length) return;
     currentIdx = gridIdx;
-    const clip = gridClips[gridIdx];
     highlightCell(gridIdx);
-
-    // Show overlay
-    const overlay = document.getElementById('overlay');
-    const frame   = document.getElementById('clip-frame');
-    const grid    = document.getElementById('grid');
-    const counter = document.getElementById('clip-counter');
-    const skipBtn = document.getElementById('skip-btn');
-
-    // Fade in overlay
-    overlay.classList.add('visible');
-    grid.classList.add('dimmed');
-    counter.classList.add('show');
-    skipBtn.classList.add('show');
-    counter.textContent = `${clipsPlayed + 1} / ${clips.length}`;
-
-    // Build embed URL — Twitch clip embed
-    const embedUrl = `https://clips.twitch.tv/embed?clip=${clip.id}&parent=${location.hostname || 'localhost'}&autoplay=true&muted=false`;
-    frame.src = embedUrl;
-
-    // Progress bar
+    document.getElementById('overlay').classList.add('visible');
+    document.getElementById('grid').classList.add('dimmed');
+    document.getElementById('clip-counter').classList.add('show');
+    document.getElementById('skip-btn').classList.add('show');
+    document.getElementById('clip-counter').textContent = `${clipsPlayed+1} / ${clips.length}`;
+    document.getElementById('clip-frame').src =
+      `https://clips.twitch.tv/embed?clip=${gridClips[gridIdx].id}&parent=${location.hostname}&autoplay=true&muted=false`;
     startProgressBar(cfg.clipDuration * 1000);
   }
 
   function nextClip() {
-    clearProgressBar();
-    clipsPlayed++;
-
-    // Every N clips, rotate one random grid cell
+    clearProgressBar(); clipsPlayed++;
     if (clipsPlayed % cfg.rotateEvery === 0) {
-      const unusedClips = clips.filter(c => !gridClips.includes(c));
-      if (unusedClips.length) {
-        const newClip = unusedClips[Math.floor(Math.random() * unusedClips.length)];
-        const replaceIdx = Math.floor(Math.random() * 9);
-        gridClips[replaceIdx] = newClip;
-        rotateCellThumbnail(replaceIdx, newClip);
+      const unused = clips.filter(c=>!gridClips.includes(c));
+      if (unused.length) {
+        const nc = unused[Math.floor(Math.random()*unused.length)];
+        const ri = Math.floor(Math.random()*9);
+        gridClips[ri] = nc; rotateCellThumbnail(ri, nc);
       }
     }
-
-    // Fade out overlay, then play next
-    const overlay = document.getElementById('overlay');
-    const frame   = document.getElementById('clip-frame');
-    const grid    = document.getElementById('grid');
-    const counter = document.getElementById('clip-counter');
-    const skipBtn = document.getElementById('skip-btn');
-
-    overlay.classList.remove('visible');
-    grid.classList.remove('dimmed');
-    counter.classList.remove('show');
-    skipBtn.classList.remove('show');
-
-    setTimeout(() => {
-      frame.src = '';
-      // Pick next clip — avoid repeating current
+    document.getElementById('overlay').classList.remove('visible');
+    document.getElementById('grid').classList.remove('dimmed');
+    document.getElementById('clip-counter').classList.remove('show');
+    document.getElementById('skip-btn').classList.remove('show');
+    setTimeout(()=>{
+      document.getElementById('clip-frame').src = '';
       let nextIdx;
-      do { nextIdx = Math.floor(Math.random() * gridClips.length); }
+      do { nextIdx = Math.floor(Math.random()*gridClips.length); }
       while (nextIdx === currentIdx && gridClips.length > 1);
-      setTimeout(() => playClip(nextIdx), 800);
+      setTimeout(()=>playClip(nextIdx), 800);
     }, 500);
   }
 
-  // ── PROGRESS BAR ──
   function startProgressBar(ms) {
-    progressDur = ms;
-    progressStart = performance.now();
     const bar = document.getElementById('clip-progress');
-    bar.style.transition = 'none';
-    bar.style.width = '0%';
-
-    function tick(now) {
-      const elapsed = now - progressStart;
-      const pct = Math.min(elapsed / progressDur * 100, 100);
-      bar.style.width = pct + '%';
-      if (pct < 100) {
-        progressTimer = requestAnimationFrame(tick);
-      } else {
-        nextClip();
-      }
-    }
+    bar.style.transition='none'; bar.style.width='0%';
+    const start = performance.now();
+    const tick = now => {
+      const pct = Math.min((now-start)/ms*100, 100);
+      bar.style.width = pct+'%';
+      if (pct < 100) progressTimer = requestAnimationFrame(tick);
+      else nextClip();
+    };
     progressTimer = requestAnimationFrame(tick);
   }
 
   function clearProgressBar() {
     if (progressTimer) cancelAnimationFrame(progressTimer);
-    const bar = document.getElementById('clip-progress');
-    bar.style.width = '0%';
-  }
-
-  // ── DEMO MODE (placeholder thumbnails) ──
-  function startDemo() {
-    document.getElementById('settings-panel').style.display = 'none';
-    // Generate fake clips using placeholder images
-    clips = Array.from({ length: 27 }, (_, i) => ({
-      id: 'demo_' + i,
-      title: 'Demo Clip ' + (i+1),
-      thumbnail_url: `https://picsum.photos/seed/clip${i}/320/180`,
-      embed_url: '',
-    }));
-    setStatus('live', 'Demo mode — ' + clips.length + ' placeholder clips');
-    buildGrid(true);
-
-    // In demo mode, just cycle thumbnails without actual video
-    demoMode();
-  }
-
-  function demoMode() {
-    currentIdx = 0;
-    clipsPlayed = 0;
-
-    function cycleDemo() {
-      if (!gridClips.length) return;
-      highlightCell(currentIdx);
-
-      // Show overlay with a placeholder instead of real video
-      const overlay = document.getElementById('overlay');
-      const frame   = document.getElementById('clip-frame');
-      const grid    = document.getElementById('grid');
-      const counter = document.getElementById('clip-counter');
-      const skipBtn = document.getElementById('skip-btn');
-
-      // Replace iframe with an image for demo
-      frame.style.display = 'none';
-      let demoImg = document.getElementById('demo-img');
-      if (!demoImg) {
-        demoImg = document.createElement('img');
-        demoImg.id = 'demo-img';
-        demoImg.style.cssText = 'width:100%;height:100%;object-fit:contain;position:absolute;top:0;left:0';
-        overlay.appendChild(demoImg);
-      }
-      demoImg.src = gridClips[currentIdx].thumbnail_url;
-
-      overlay.classList.add('visible');
-      grid.classList.add('dimmed');
-      counter.classList.add('show');
-      skipBtn.classList.add('show');
-      counter.textContent = `${clipsPlayed + 1} / ${clips.length}`;
-
-      startProgressBar(5000); // 5s per demo clip
-    }
-
-    // Override nextClip for demo
-    window._origNextClip = window.nextClip;
-    window.nextClip = function() {
-      clearProgressBar();
-      clipsPlayed++;
-
-      if (clipsPlayed % cfg.rotateEvery === 0) {
-        const unusedClips = clips.filter(c => !gridClips.includes(c));
-        if (unusedClips.length) {
-          const newClip = unusedClips[Math.floor(Math.random() * unusedClips.length)];
-          const replaceIdx = Math.floor(Math.random() * 9);
-          gridClips[replaceIdx] = newClip;
-          rotateCellThumbnail(replaceIdx, newClip);
-        }
-      }
-
-      const overlay = document.getElementById('overlay');
-      const grid    = document.getElementById('grid');
-      const counter = document.getElementById('clip-counter');
-      const skipBtn = document.getElementById('skip-btn');
-
-      overlay.classList.remove('visible');
-      grid.classList.remove('dimmed');
-      counter.classList.remove('show');
-      skipBtn.classList.remove('show');
-
-      setTimeout(() => {
-        let nextIdx;
-        do { nextIdx = Math.floor(Math.random() * gridClips.length); }
-        while (nextIdx === currentIdx && gridClips.length > 1);
-        currentIdx = nextIdx;
-        setTimeout(cycleDemo, 800);
-      }, 500);
-    };
-
-    cycleDemo();
+    document.getElementById('clip-progress').style.width = '0%';
   }
 
   // ── INIT ──
-  loadSavedSettings();
-  if (cfg.channel && cfg.clientId && cfg.token) fetchClips();
+  async function init() {
+    loadSavedSettings();
+    handleOAuthCallback(); // picks up token from URL hash if returning from Twitch
+
+    // Restore saved token
+    if (!accessToken) {
+      const t = localStorage.getItem('twitch_token');
+      if (t) accessToken = t;
+    }
+
+    if (CLIENT_ID && accessToken) {
+      const valid = await validateToken();
+      if (valid) {
+        await fetchUserInfo();
+        showApp();
+        await fetchClips();
+        return;
+      }
+      // Token expired — clear it, show login
+      localStorage.removeItem('twitch_token');
+      localStorage.removeItem('twitch_user');
+      accessToken = null;
+    }
+
+    // Route to correct starting screen
+    if (CLIENT_ID) {
+      show('screen-login');
+    } else {
+      show('screen-clientid');
+    }
+  }
+
+  init();
 </script>
 </body>
 </html>
