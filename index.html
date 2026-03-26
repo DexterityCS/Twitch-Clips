@@ -748,24 +748,25 @@
 
   function nextClip() {
     clearProgressBar(); clipsPlayed++;
-    if (clipsPlayed % cfg.rotateEvery === 0) {
-      const unused = clips.filter(c=>!gridClips.includes(c));
-      if (unused.length) {
-        const nc = unused[Math.floor(Math.random()*unused.length)];
-        const ri = 0;
-        gridClips[ri] = nc; rotateCellThumbnail(ri, nc);
-      }
-    }
+
+    // Always pick next from full clips pool, not just gridClips
+    let nextIdx;
+    do { nextIdx = Math.floor(Math.random() * clips.length); }
+    while (clips[nextIdx].id === (gridClips[currentIdx] && gridClips[currentIdx].id) && clips.length > 1);
+
+    // Update the single cell thumbnail to the next clip
+    const nc = clips[nextIdx];
+    gridClips[0] = nc;
+    rotateCellThumbnail(0, nc);
+
     document.getElementById('overlay').classList.remove('visible');
     document.getElementById('grid').classList.remove('dimmed');
     document.getElementById('clip-counter').classList.remove('show');
     document.getElementById('skip-btn').classList.remove('show');
     setTimeout(()=>{
       document.getElementById('clip-frame').src = '';
-      let nextIdx;
-      do { nextIdx = Math.floor(Math.random()*gridClips.length); }
-      while (nextIdx === currentIdx && gridClips.length > 1);
-      setTimeout(()=>playClip(nextIdx), 800);
+      currentIdx = 0;
+      setTimeout(()=>playClip(0), 800);
     }, 500);
   }
 
