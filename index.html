@@ -301,6 +301,43 @@
   .sbtn-s { background:rgba(255,255,255,0.08); color:#fff; border:1px solid rgba(255,255,255,0.12); }
   .sbtn-danger { background:rgba(239,68,68,0.15); color:#ef4444; border:1px solid rgba(239,68,68,0.2); }
 
+  /* ── OBS PANEL ── */
+  #obs-panel {
+    position:fixed; top:56px; right:14px; width:320px;
+    background:rgba(8,8,18,0.97);
+    border:1px solid rgba(255,255,255,0.08);
+    border-radius:10px; padding:18px; z-index:100; display:none;
+    backdrop-filter:blur(12px); box-shadow:0 8px 32px rgba(0,0,0,0.7);
+  }
+  #obs-panel h2 {
+    font-family:'Bebas Neue',sans-serif; font-size:14px;
+    letter-spacing:3px; color:#9146ff; margin-bottom:4px;
+  }
+  .obs-sub { font-size:11px; color:var(--muted); margin-bottom:14px; line-height:1.5; }
+  .obs-url-box {
+    background:rgba(255,255,255,0.04);
+    border:1px solid rgba(255,255,255,0.1);
+    border-radius:6px; padding:10px 12px;
+    font-family:monospace; font-size:11px;
+    color:rgba(255,255,255,0.6); word-break:break-all;
+    line-height:1.5; margin-bottom:10px; user-select:all;
+  }
+  .obs-copy-btn {
+    width:100%; padding:9px; border:none; border-radius:6px;
+    background:#9146ff; color:#fff;
+    font-family:'DM Sans',sans-serif; font-size:12px;
+    letter-spacing:1.5px; text-transform:uppercase;
+    cursor:pointer; font-weight:500; transition:background 0.2s;
+  }
+  .obs-copy-btn:hover { background:#7c2fef; }
+  .obs-copy-btn.copied { background:#22c55e; }
+  .obs-steps {
+    margin-top:14px; padding-top:12px;
+    border-top:1px solid rgba(255,255,255,0.07);
+    font-size:11px; color:rgba(255,255,255,0.35); line-height:1.9;
+  }
+  .obs-steps strong { color:rgba(255,255,255,0.55); }
+
   /* ── STATUS ── */
   #status {
     position:fixed; bottom:14px; left:14px;
@@ -384,8 +421,22 @@
     <span id="user-name"></span>
   </div>
   <div id="topbar-right">
+    <button class="top-btn" onclick="toggleObs()">📡 OBS Overlay</button>
     <button class="top-btn" onclick="toggleSettings()">⚙ Settings</button>
     <button class="top-btn" onclick="logout()">Log out</button>
+  </div>
+</div>
+
+<div id="obs-panel">
+  <h2>OBS Browser Source</h2>
+  <div class="obs-sub">Add this URL as a Browser Source in OBS. Set width to 1920 and height to 1080.</div>
+  <div class="obs-url-box" id="obs-url">Generating...</div>
+  <button class="obs-copy-btn" id="obs-copy-btn" onclick="copyObsUrl()">Copy URL</button>
+  <div class="obs-steps">
+    <strong>In OBS:</strong> Sources → + → Browser Source<br>
+    Paste URL → Width: <strong>1920</strong> → Height: <strong>1080</strong><br>
+    ✓ Shutdown source when not visible<br>
+    ✓ Refresh browser when scene becomes active
   </div>
 </div>
 
@@ -539,6 +590,40 @@
     }
   }
 
+  // ── OBS PANEL ──
+  function toggleObs() {
+    const p = document.getElementById('obs-panel');
+    const s = document.getElementById('settings-panel');
+    s.style.display = 'none';
+    p.style.display = p.style.display === 'block' ? 'none' : 'block';
+    if (p.style.display === 'block') renderObsUrl();
+  }
+
+  function renderObsUrl() {
+    if (!accessToken || !CLIENT_ID || !userInfo) return;
+    const base = location.origin + location.pathname.replace('index.html','') + 'obs.html';
+    const params = new URLSearchParams({
+      token: accessToken,
+      client_id: CLIENT_ID,
+      channel: userInfo.login,
+      duration: cfg.clipDuration,
+      accent: cfg.accent.replace('#',''),
+      accent2: cfg.accent2.replace('#',''),
+    });
+    const url = base + '?' + params.toString();
+    document.getElementById('obs-url').textContent = url;
+  }
+
+  function copyObsUrl() {
+    const url = document.getElementById('obs-url').textContent;
+    navigator.clipboard.writeText(url).then(() => {
+      const btn = document.getElementById('obs-copy-btn');
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'Copy URL'; btn.classList.remove('copied'); }, 2000);
+    });
+  }
+
   // ── SETTINGS ──
   function toggleSettings() {
     const p = document.getElementById('settings-panel');
@@ -559,6 +644,7 @@
     applyTheme();
     localStorage.setItem('clipwall-cfg', JSON.stringify(cfg));
     document.getElementById('settings-panel').style.display = 'none';
+    renderObsUrl();
   }
 
   function loadSavedSettings() {
