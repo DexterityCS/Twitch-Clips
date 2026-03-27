@@ -435,6 +435,7 @@
   <div class="obs-steps">
     <strong>In OBS:</strong> Sources → + → Browser Source<br>
     Paste URL → Width: <strong>1920</strong> → Height: <strong>1080</strong><br>
+    ✓ <strong>Control audio via OBS</strong> (restores clip audio)<br>
     ✓ Shutdown source when not visible<br>
     ✓ Refresh browser when scene becomes active
   </div>
@@ -529,7 +530,7 @@
     url.searchParams.set('client_id', CLIENT_ID);
     url.searchParams.set('redirect_uri', REDIRECT_URI);
     url.searchParams.set('response_type', 'token');
-    url.searchParams.set('scope', 'user:read:email');
+    url.searchParams.set('scope', 'user:read:email clips:edit');
     url.searchParams.set('state', state);
     location.href = url.toString();
   }

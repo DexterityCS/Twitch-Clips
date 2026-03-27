@@ -69,9 +69,11 @@
     position: fixed; inset: 0; background: #000;
     display: none; align-items: center; justify-content: center;
     flex-direction: column; gap: 12px;
-    color: rgba(255,255,255,0.4); font-size: 13px; z-index: 20;
+    color: rgba(255,255,255,0.4); font-size: 14px; z-index: 20;
+    text-align: center; padding: 40px;
   }
   #error.show { display: flex; }
+  #error a { color: #a855f7; }
 </style>
 </head>
 <body>
@@ -121,28 +123,30 @@
 
   function showError(msg) {
     document.getElementById('loader').classList.add('hidden');
-    document.getElementById('error-msg').textContent = msg;
+    document.getElementById('error-msg').innerHTML = msg;
     document.getElementById('error').classList.add('show');
   }
 
-  // ── DERIVE MP4 URL FROM THUMBNAIL ──
-  // Twitch thumbnail URLs look like:
-  // https://clips-media-assets2.twitch.tv/XXXXX-preview-480x272.jpg
-  // The MP4 is at the same base path without the -preview-WxH.jpg suffix
-  function getMp4Url(thumbnailUrl) {
-    if (!thumbnailUrl) return null;
-    const idx = thumbnailUrl.indexOf('-preview');
-    if (idx === -1) return null;
-    return thumbnailUrl.slice(0, idx) + '.mp4';
+  const headers = { 'Authorization': `Bearer ${TOKEN}`, 'Client-Id': CLIENT_ID };
+
+  // ── GET DOWNLOAD URL VIA OFFICIAL ENDPOINT ──
+  async function getDownloadUrl(clipId) {
+    try {
+      const res = await fetch(
+        `https://api.twitch.tv/helix/clips/download?id=${clipId}`,
+        { headers }
+      );
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.data?.[0]?.url || null;
+    } catch { return null; }
   }
 
   async function init() {
     if (!TOKEN || !CLIENT_ID || !CHANNEL) {
-      showError('Missing URL parameters. Regenerate the OBS URL from the setup page.');
+      showError('Missing URL parameters.<br>Regenerate the OBS URL from the setup page.');
       return;
     }
-
-    const headers = { 'Authorization': `Bearer ${TOKEN}`, 'Client-Id': CLIENT_ID };
 
     try {
       const userRes  = await fetch(`https://api.twitch.tv/helix/users?login=${CHANNEL}`, { headers });
@@ -164,18 +168,34 @@
       clips = shuffle(all.filter(c => {
         if (seen.has(c.id)) return false;
         seen.add(c.id); return true;
-      })).map(c => ({
-        ...c,
-        mp4: getMp4Url(c.thumbnail_url)
-      })).filter(c => c.mp4); // drop any clips we can't get an MP4 for
+      }));
 
-      if (!clips.length) throw new Error('No playable clips found for ' + CHANNEL);
+      if (!clips.length) throw new Error('No clips found for ' + CHANNEL);
 
+      // Get download URL for first clip, start playing
       document.getElementById('loader').classList.add('hidden');
+      const firstUrl = await getDownloadUrl(clips[0].id);
+      if (!firstUrl) throw new Error(
+        'Could not get clip download URL.<br><br>' +
+        'Make sure you logged in with <strong>clips:edit</strong> scope.<br>' +
+        'Log out on the setup page and log back in to re-grant permissions.'
+      );
+      clips[0].downloadUrl = firstUrl;
       playClip(0);
 
+      // Pre-fetch rest in background
+      prefetchUrls();
+
     } catch(e) {
-      showError(e.message);
+      showError(e.message || String(e));
+    }
+  }
+
+  async function prefetchUrls() {
+    for (let i = 1; i < Math.min(clips.length, 10); i++) {
+      if (!clips[i].downloadUrl) {
+        clips[i].downloadUrl = await getDownloadUrl(clips[i].id);
+      }
     }
   }
 
@@ -196,20 +216,32 @@
     return next;
   }
 
-  function playClip(idx) {
+  async function playClip(idx) {
     currentIdx = idx;
     const clip = clips[idx];
+
+    // Fetch download URL if not already cached
+    if (!clip.downloadUrl) {
+      clip.downloadUrl = await getDownloadUrl(clip.id);
+    }
+
+    if (!clip.downloadUrl) {
+      // Skip this clip and move on
+      clips.splice(idx, 1);
+      if (!clips.length) { showError('All clips failed to load.'); return; }
+      playClip(getNextIdx(Math.max(0, idx - 1)));
+      return;
+    }
 
     const nextVid = activeVideo === 'a' ? videoB : videoA;
     const prevVid = activeVideo === 'a' ? videoA : videoB;
 
-    nextVid.src = clip.mp4;
+    nextVid.src = clip.downloadUrl;
     nextVid.muted = false;
     nextVid.volume = 1;
 
     nextVid.oncanplay = () => {
       nextVid.play().catch(() => {
-        // Muted fallback — should rarely hit in OBS
         nextVid.muted = true;
         nextVid.play();
       });
@@ -222,15 +254,16 @@
       clearProgress();
       startProgress();
 
-      // Preload next clip
+      // Pre-fetch next clip URL in background
       const nextIdx = getNextIdx(idx);
-      const preload = new Audio();
-      preload.src = clips[nextIdx].mp4;
+      if (!clips[nextIdx].downloadUrl) {
+        getDownloadUrl(clips[nextIdx].id).then(url => {
+          clips[nextIdx].downloadUrl = url;
+        });
+      }
     };
 
     nextVid.onerror = () => {
-      // Skip this clip if it fails to load
-      console.warn('Failed to load clip:', clip.id);
       clips.splice(idx, 1);
       if (!clips.length) { showError('All clips failed to load.'); return; }
       playClip(getNextIdx(Math.max(0, idx - 1)));
