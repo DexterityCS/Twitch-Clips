@@ -87,7 +87,6 @@
   <div id="error-msg">Could not load clips.</div>
 </div>
 
-<!-- Two video elements for seamless crossfade -->
 <video id="video-a" autoplay playsinline></video>
 <video id="video-b" autoplay playsinline></video>
 
@@ -116,8 +115,7 @@
     `0 0 8px ${ACCENT}`;
 
   let clips = [], currentIdx = 0, progressTimer = null;
-  let activeVideo = 'a'; // which video element is currently showing
-
+  let activeVideo = 'a';
   const videoA = document.getElementById('video-a');
   const videoB = document.getElementById('video-b');
 
@@ -127,53 +125,15 @@
     document.getElementById('error').classList.add('show');
   }
 
-  // ── FETCH DIRECT MP4 URL FROM TWITCH ──
-  // Twitch clip MP4s are available via the GQL API
-  async function getClipMp4(clipId) {
-    try {
-      const res = await fetch('https://gql.twitch.tv/gql', {
-        method: 'POST',
-        headers: {
-          'Client-Id': 'kimne78kx3ncx6brgo4mv6wki5h1ko', // Twitch's own public web client ID
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify([{
-          operationName: 'VideoAccessToken_Clip',
-          variables: { slug: clipId },
-          extensions: {
-            persistedQuery: {
-              version: 1,
-              sha256Hash: '36b89d2507fce29e5ca551df756d27c1cfe079e2609642b4390aa4c35796eb4'
-            }
-          }
-        }])
-      });
-      const data = await res.json();
-      const clip  = data[0]?.data?.clip;
-      if (!clip) return null;
-
-      const token     = clip.playbackAccessToken;
-      const qualities = clip.videoQualities;
-      if (!qualities?.length) return null;
-
-      // Pick highest quality available
-      const best = qualities[0];
-      const sig  = encodeURIComponent(token.signature);
-      const tok  = encodeURIComponent(token.value);
-      return `${best.sourceURL}?sig=${sig}&token=${tok}`;
-    } catch(e) {
-      return null;
-    }
-  }
-
-  // Pre-fetch MP4 URLs for all clips
-  async function prefetchMp4s() {
-    // Fetch in batches of 5 to avoid hammering the API
-    for (let i = 0; i < clips.length; i++) {
-      if (!clips[i].mp4) {
-        clips[i].mp4 = await getClipMp4(clips[i].id);
-      }
-    }
+  // ── DERIVE MP4 URL FROM THUMBNAIL ──
+  // Twitch thumbnail URLs look like:
+  // https://clips-media-assets2.twitch.tv/XXXXX-preview-480x272.jpg
+  // The MP4 is at the same base path without the -preview-WxH.jpg suffix
+  function getMp4Url(thumbnailUrl) {
+    if (!thumbnailUrl) return null;
+    const idx = thumbnailUrl.indexOf('-preview');
+    if (idx === -1) return null;
+    return thumbnailUrl.slice(0, idx) + '.mp4';
   }
 
   async function init() {
@@ -204,19 +164,15 @@
       clips = shuffle(all.filter(c => {
         if (seen.has(c.id)) return false;
         seen.add(c.id); return true;
-      }));
+      })).map(c => ({
+        ...c,
+        mp4: getMp4Url(c.thumbnail_url)
+      })).filter(c => c.mp4); // drop any clips we can't get an MP4 for
 
-      if (!clips.length) throw new Error('No clips found for ' + CHANNEL);
-
-      // Fetch first clip MP4 immediately, prefetch rest in background
-      clips[0].mp4 = await getClipMp4(clips[0].id);
-      if (!clips[0].mp4) throw new Error('Could not get clip video URL');
+      if (!clips.length) throw new Error('No playable clips found for ' + CHANNEL);
 
       document.getElementById('loader').classList.add('hidden');
       playClip(0);
-
-      // Prefetch rest in background
-      prefetchMp4s();
 
     } catch(e) {
       showError(e.message);
@@ -232,56 +188,53 @@
     return a;
   }
 
-  async function playClip(idx) {
+  function getNextIdx(current) {
+    if (clips.length === 1) return 0;
+    let next;
+    do { next = Math.floor(Math.random() * clips.length); }
+    while (next === current);
+    return next;
+  }
+
+  function playClip(idx) {
     currentIdx = idx;
     const clip = clips[idx];
 
-    // Make sure we have the MP4 URL
-    if (!clip.mp4) {
-      clip.mp4 = await getClipMp4(clip.id);
-    }
-    if (!clip.mp4) {
-      // Skip broken clip
-      nextClip(); return;
-    }
+    const nextVid = activeVideo === 'a' ? videoB : videoA;
+    const prevVid = activeVideo === 'a' ? videoA : videoB;
 
-    // Crossfade between video-a and video-b
-    const nextVideo  = activeVideo === 'a' ? videoB : videoA;
-    const prevVideo  = activeVideo === 'a' ? videoA : videoB;
+    nextVid.src = clip.mp4;
+    nextVid.muted = false;
+    nextVid.volume = 1;
 
-    nextVideo.src = clip.mp4;
-    nextVideo.muted = false;
-    nextVideo.volume = 1;
-
-    nextVideo.oncanplay = () => {
-      nextVideo.play().catch(() => {
-        // If unmuted play fails, try muted (fallback)
-        nextVideo.muted = true;
-        nextVideo.play();
+    nextVid.oncanplay = () => {
+      nextVid.play().catch(() => {
+        // Muted fallback — should rarely hit in OBS
+        nextVid.muted = true;
+        nextVid.play();
       });
 
-      // Crossfade
-      nextVideo.classList.add('active');
-      prevVideo.classList.remove('active');
+      nextVid.classList.add('active');
+      prevVid.classList.remove('active');
       activeVideo = activeVideo === 'a' ? 'b' : 'a';
 
       document.getElementById('watermark').classList.add('show');
       clearProgress();
       startProgress();
+
+      // Preload next clip
+      const nextIdx = getNextIdx(idx);
+      const preload = new Audio();
+      preload.src = clips[nextIdx].mp4;
     };
 
-    // Pre-fetch next clip in background
-    const nextIdx = getNextIdx(idx);
-    if (!clips[nextIdx].mp4) {
-      getClipMp4(clips[nextIdx].id).then(url => { clips[nextIdx].mp4 = url; });
-    }
-  }
-
-  function getNextIdx(current) {
-    let next;
-    do { next = Math.floor(Math.random() * clips.length); }
-    while (next === current && clips.length > 1);
-    return next;
+    nextVid.onerror = () => {
+      // Skip this clip if it fails to load
+      console.warn('Failed to load clip:', clip.id);
+      clips.splice(idx, 1);
+      if (!clips.length) { showError('All clips failed to load.'); return; }
+      playClip(getNextIdx(Math.max(0, idx - 1)));
+    };
   }
 
   function nextClip() {
