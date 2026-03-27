@@ -3,7 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <title>Clip Wall — OBS Overlay</title>
-<script src="https://player.twitch.tv/js/embed/v1.js"></script>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
   body {
@@ -13,14 +12,15 @@
     font-family: 'Segoe UI', sans-serif;
   }
 
-  #player-wrap {
+  #video-a, #video-b {
     position: fixed; inset: 0;
-    opacity: 0; transition: opacity 0.6s ease;
+    width: 100%; height: 100%;
+    object-fit: contain;
+    background: #000;
+    opacity: 0;
+    transition: opacity 0.6s ease;
   }
-  #player-wrap.visible { opacity: 1; }
-  #player-wrap iframe {
-    width: 100%; height: 100%; border: none;
-  }
+  #video-a.active, #video-b.active { opacity: 1; }
 
   #progress {
     position: fixed; bottom: 0; left: 0;
@@ -61,8 +61,8 @@
   .loader-dot:nth-child(2) { animation-delay: 0.2s; }
   .loader-dot:nth-child(3) { animation-delay: 0.4s; }
   @keyframes dotPulse {
-    0%,80%,100% { transform: scale(0.7); opacity: 0.3; }
-    40% { transform: scale(1); opacity: 1; }
+    0%,80%,100% { transform:scale(0.7); opacity:0.3; }
+    40% { transform:scale(1); opacity:1; }
   }
 
   #error {
@@ -87,7 +87,10 @@
   <div id="error-msg">Could not load clips.</div>
 </div>
 
-<div id="player-wrap"></div>
+<!-- Two video elements for seamless crossfade -->
+<video id="video-a" autoplay playsinline></video>
+<video id="video-b" autoplay playsinline></video>
+
 <div id="progress"></div>
 
 <div id="watermark">
@@ -99,13 +102,13 @@
 </div>
 
 <script>
-  const params   = new URLSearchParams(location.search);
-  const TOKEN    = params.get('token')     || '';
-  const CLIENT_ID= params.get('client_id') || '';
-  const CHANNEL  = params.get('channel')   || '';
-  const DURATION = parseInt(params.get('duration') || '30') * 1000;
-  const ACCENT   = '#' + (params.get('accent')  || 'a855f7');
-  const ACCENT2  = '#' + (params.get('accent2') || 'ec4899');
+  const params    = new URLSearchParams(location.search);
+  const TOKEN     = params.get('token')     || '';
+  const CLIENT_ID = params.get('client_id') || '';
+  const CHANNEL   = params.get('channel')   || '';
+  const DURATION  = parseInt(params.get('duration') || '30') * 1000;
+  const ACCENT    = '#' + (params.get('accent')  || 'a855f7');
+  const ACCENT2   = '#' + (params.get('accent2') || 'ec4899');
 
   document.getElementById('progress').style.background =
     `linear-gradient(90deg, ${ACCENT}, ${ACCENT2})`;
@@ -113,12 +116,64 @@
     `0 0 8px ${ACCENT}`;
 
   let clips = [], currentIdx = 0, progressTimer = null;
-  let player = null;
+  let activeVideo = 'a'; // which video element is currently showing
+
+  const videoA = document.getElementById('video-a');
+  const videoB = document.getElementById('video-b');
 
   function showError(msg) {
     document.getElementById('loader').classList.add('hidden');
     document.getElementById('error-msg').textContent = msg;
     document.getElementById('error').classList.add('show');
+  }
+
+  // ── FETCH DIRECT MP4 URL FROM TWITCH ──
+  // Twitch clip MP4s are available via the GQL API
+  async function getClipMp4(clipId) {
+    try {
+      const res = await fetch('https://gql.twitch.tv/gql', {
+        method: 'POST',
+        headers: {
+          'Client-Id': 'kimne78kx3ncx6brgo4mv6wki5h1ko', // Twitch's own public web client ID
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify([{
+          operationName: 'VideoAccessToken_Clip',
+          variables: { slug: clipId },
+          extensions: {
+            persistedQuery: {
+              version: 1,
+              sha256Hash: '36b89d2507fce29e5ca551df756d27c1cfe079e2609642b4390aa4c35796eb4'
+            }
+          }
+        }])
+      });
+      const data = await res.json();
+      const clip  = data[0]?.data?.clip;
+      if (!clip) return null;
+
+      const token     = clip.playbackAccessToken;
+      const qualities = clip.videoQualities;
+      if (!qualities?.length) return null;
+
+      // Pick highest quality available
+      const best = qualities[0];
+      const sig  = encodeURIComponent(token.signature);
+      const tok  = encodeURIComponent(token.value);
+      return `${best.sourceURL}?sig=${sig}&token=${tok}`;
+    } catch(e) {
+      return null;
+    }
+  }
+
+  // Pre-fetch MP4 URLs for all clips
+  async function prefetchMp4s() {
+    // Fetch in batches of 5 to avoid hammering the API
+    for (let i = 0; i < clips.length; i++) {
+      if (!clips[i].mp4) {
+        clips[i].mp4 = await getClipMp4(clips[i].id);
+      }
+    }
   }
 
   async function init() {
@@ -153,8 +208,15 @@
 
       if (!clips.length) throw new Error('No clips found for ' + CHANNEL);
 
+      // Fetch first clip MP4 immediately, prefetch rest in background
+      clips[0].mp4 = await getClipMp4(clips[0].id);
+      if (!clips[0].mp4) throw new Error('Could not get clip video URL');
+
       document.getElementById('loader').classList.add('hidden');
-      initPlayer(clips[0]);
+      playClip(0);
+
+      // Prefetch rest in background
+      prefetchMp4s();
 
     } catch(e) {
       showError(e.message);
@@ -170,82 +232,62 @@
     return a;
   }
 
-  function initPlayer(clip) {
-    // Create Twitch Player instance — gives us JS control over play/mute
-    player = new Twitch.Player('player-wrap', {
-      clip: clip.id,
-      width: '100%',
-      height: '100%',
-      autoplay: true,
-      muted: false,
-      allowfullscreen: false,
-      parent: [location.hostname]
-    });
-
-    player.addEventListener(Twitch.Player.READY, () => {
-      player.setMuted(false);
-      player.play();
-      document.getElementById('player-wrap').classList.add('visible');
-      document.getElementById('watermark').classList.add('show');
-      startProgress();
-    });
-
-    player.addEventListener(Twitch.Player.PAUSE, () => {
-      // Auto-resume if paused by the player itself (e.g. autoplay block)
-      setTimeout(() => {
-        try { player.play(); } catch(e) {}
-      }, 200);
-    });
-  }
-
-  function playClip(idx) {
+  async function playClip(idx) {
     currentIdx = idx;
     const clip = clips[idx];
 
-    document.getElementById('player-wrap').classList.remove('visible');
-    document.getElementById('watermark').classList.remove('show');
+    // Make sure we have the MP4 URL
+    if (!clip.mp4) {
+      clip.mp4 = await getClipMp4(clip.id);
+    }
+    if (!clip.mp4) {
+      // Skip broken clip
+      nextClip(); return;
+    }
 
-    setTimeout(() => {
-      if (player) {
-        // Swap clip on existing player — faster than recreating
-        player.pause();
-        // Twitch Player API doesn't have setClip, so recreate the player
-        document.getElementById('player-wrap').innerHTML = '';
-        player = null;
-      }
+    // Crossfade between video-a and video-b
+    const nextVideo  = activeVideo === 'a' ? videoB : videoA;
+    const prevVideo  = activeVideo === 'a' ? videoA : videoB;
 
-      player = new Twitch.Player('player-wrap', {
-        clip: clip.id,
-        width: '100%',
-        height: '100%',
-        autoplay: true,
-        muted: false,
-        allowfullscreen: false,
-        parent: [location.hostname]
+    nextVideo.src = clip.mp4;
+    nextVideo.muted = false;
+    nextVideo.volume = 1;
+
+    nextVideo.oncanplay = () => {
+      nextVideo.play().catch(() => {
+        // If unmuted play fails, try muted (fallback)
+        nextVideo.muted = true;
+        nextVideo.play();
       });
 
-      player.addEventListener(Twitch.Player.READY, () => {
-        player.setMuted(false);
-        player.play();
-        document.getElementById('player-wrap').classList.add('visible');
-        document.getElementById('watermark').classList.add('show');
-      });
+      // Crossfade
+      nextVideo.classList.add('active');
+      prevVideo.classList.remove('active');
+      activeVideo = activeVideo === 'a' ? 'b' : 'a';
 
-      // Auto-resume on any pause event
-      player.addEventListener(Twitch.Player.PAUSE, () => {
-        setTimeout(() => { try { player.play(); } catch(e) {} }, 200);
-      });
+      document.getElementById('watermark').classList.add('show');
+      clearProgress();
+      startProgress();
+    };
 
-    }, 500);
+    // Pre-fetch next clip in background
+    const nextIdx = getNextIdx(idx);
+    if (!clips[nextIdx].mp4) {
+      getClipMp4(clips[nextIdx].id).then(url => { clips[nextIdx].mp4 = url; });
+    }
+  }
+
+  function getNextIdx(current) {
+    let next;
+    do { next = Math.floor(Math.random() * clips.length); }
+    while (next === current && clips.length > 1);
+    return next;
   }
 
   function nextClip() {
     clearProgress();
-    let next;
-    do { next = Math.floor(Math.random() * clips.length); }
-    while (next === currentIdx && clips.length > 1);
-    playClip(next);
-    setTimeout(() => startProgress(), 1200);
+    document.getElementById('watermark').classList.remove('show');
+    playClip(getNextIdx(currentIdx));
   }
 
   function startProgress() {
