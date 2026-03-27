@@ -11,23 +11,18 @@
     overflow: hidden;
     font-family: 'Segoe UI', sans-serif;
   }
-
-  #video-a, #video-b {
+  #clip-frame {
     position: fixed; inset: 0;
     width: 100%; height: 100%;
-    object-fit: contain;
-    background: #000;
-    opacity: 0;
+    border: none; opacity: 0;
     transition: opacity 0.6s ease;
   }
-  #video-a.active, #video-b.active { opacity: 1; }
-
+  #clip-frame.visible { opacity: 1; }
   #progress {
     position: fixed; bottom: 0; left: 0;
     height: 4px; width: 0%;
     z-index: 10; border-radius: 0 2px 2px 0;
   }
-
   #watermark {
     position: fixed; bottom: 18px; left: 20px;
     display: flex; align-items: center; gap: 10px;
@@ -46,7 +41,6 @@
     font-size: 15px; font-weight: 700; color: #fff;
     letter-spacing: 0.5px; text-shadow: 0 1px 6px rgba(0,0,0,0.8);
   }
-
   #loader {
     position: fixed; inset: 0; background: #000;
     display: flex; align-items: center; justify-content: center;
@@ -64,16 +58,13 @@
     0%,80%,100% { transform:scale(0.7); opacity:0.3; }
     40% { transform:scale(1); opacity:1; }
   }
-
   #error {
     position: fixed; inset: 0; background: #000;
     display: none; align-items: center; justify-content: center;
     flex-direction: column; gap: 12px;
-    color: rgba(255,255,255,0.4); font-size: 14px; z-index: 20;
-    text-align: center; padding: 40px;
+    color: rgba(255,255,255,0.4); font-size: 13px; z-index: 20;
   }
   #error.show { display: flex; }
-  #error a { color: #a855f7; }
 </style>
 </head>
 <body>
@@ -89,8 +80,10 @@
   <div id="error-msg">Could not load clips.</div>
 </div>
 
-<video id="video-a" autoplay playsinline></video>
-<video id="video-b" autoplay playsinline></video>
+<iframe id="clip-frame"
+  allowfullscreen
+  allow="autoplay; encrypted-media; picture-in-picture"
+></iframe>
 
 <div id="progress"></div>
 
@@ -110,6 +103,7 @@
   const DURATION  = parseInt(params.get('duration') || '30') * 1000;
   const ACCENT    = '#' + (params.get('accent')  || 'a855f7');
   const ACCENT2   = '#' + (params.get('accent2') || 'ec4899');
+  const HOSTNAME  = location.hostname;
 
   document.getElementById('progress').style.background =
     `linear-gradient(90deg, ${ACCENT}, ${ACCENT2})`;
@@ -117,36 +111,20 @@
     `0 0 8px ${ACCENT}`;
 
   let clips = [], currentIdx = 0, progressTimer = null;
-  let activeVideo = 'a';
-  const videoA = document.getElementById('video-a');
-  const videoB = document.getElementById('video-b');
 
   function showError(msg) {
     document.getElementById('loader').classList.add('hidden');
-    document.getElementById('error-msg').innerHTML = msg;
+    document.getElementById('error-msg').textContent = msg;
     document.getElementById('error').classList.add('show');
-  }
-
-  const headers = { 'Authorization': `Bearer ${TOKEN}`, 'Client-Id': CLIENT_ID };
-
-  // ── GET DOWNLOAD URL VIA OFFICIAL ENDPOINT ──
-  async function getDownloadUrl(clipId) {
-    try {
-      const res = await fetch(
-        `https://api.twitch.tv/helix/clips/download?id=${clipId}`,
-        { headers }
-      );
-      if (!res.ok) return null;
-      const data = await res.json();
-      return data.data?.[0]?.url || null;
-    } catch { return null; }
   }
 
   async function init() {
     if (!TOKEN || !CLIENT_ID || !CHANNEL) {
-      showError('Missing URL parameters.<br>Regenerate the OBS URL from the setup page.');
+      showError('Missing URL parameters. Regenerate the OBS URL from the setup page.');
       return;
     }
+
+    const headers = { 'Authorization': `Bearer ${TOKEN}`, 'Client-Id': CLIENT_ID };
 
     try {
       const userRes  = await fetch(`https://api.twitch.tv/helix/users?login=${CHANNEL}`, { headers });
@@ -172,30 +150,11 @@
 
       if (!clips.length) throw new Error('No clips found for ' + CHANNEL);
 
-      // Get download URL for first clip, start playing
       document.getElementById('loader').classList.add('hidden');
-      const firstUrl = await getDownloadUrl(clips[0].id);
-      if (!firstUrl) throw new Error(
-        'Could not get clip download URL.<br><br>' +
-        'Make sure you logged in with <strong>clips:edit</strong> scope.<br>' +
-        'Log out on the setup page and log back in to re-grant permissions.'
-      );
-      clips[0].downloadUrl = firstUrl;
       playClip(0);
 
-      // Pre-fetch rest in background
-      prefetchUrls();
-
     } catch(e) {
-      showError(e.message || String(e));
-    }
-  }
-
-  async function prefetchUrls() {
-    for (let i = 1; i < Math.min(clips.length, 10); i++) {
-      if (!clips[i].downloadUrl) {
-        clips[i].downloadUrl = await getDownloadUrl(clips[i].id);
-      }
+      showError(e.message);
     }
   }
 
@@ -216,64 +175,33 @@
     return next;
   }
 
-  async function playClip(idx) {
+  function playClip(idx) {
     currentIdx = idx;
-    const clip = clips[idx];
+    const clip  = clips[idx];
+    const frame = document.getElementById('clip-frame');
 
-    // Fetch download URL if not already cached
-    if (!clip.downloadUrl) {
-      clip.downloadUrl = await getDownloadUrl(clip.id);
-    }
+    frame.classList.remove('visible');
 
-    if (!clip.downloadUrl) {
-      // Skip this clip and move on
-      clips.splice(idx, 1);
-      if (!clips.length) { showError('All clips failed to load.'); return; }
-      playClip(getNextIdx(Math.max(0, idx - 1)));
-      return;
-    }
-
-    const nextVid = activeVideo === 'a' ? videoB : videoA;
-    const prevVid = activeVideo === 'a' ? videoA : videoB;
-
-    nextVid.src = clip.downloadUrl;
-    nextVid.muted = false;
-    nextVid.volume = 1;
-
-    nextVid.oncanplay = () => {
-      nextVid.play().catch(() => {
-        nextVid.muted = true;
-        nextVid.play();
-      });
-
-      nextVid.classList.add('active');
-      prevVid.classList.remove('active');
-      activeVideo = activeVideo === 'a' ? 'b' : 'a';
-
-      document.getElementById('watermark').classList.add('show');
-      clearProgress();
-      startProgress();
-
-      // Pre-fetch next clip URL in background
-      const nextIdx = getNextIdx(idx);
-      if (!clips[nextIdx].downloadUrl) {
-        getDownloadUrl(clips[nextIdx].id).then(url => {
-          clips[nextIdx].downloadUrl = url;
-        });
-      }
-    };
-
-    nextVid.onerror = () => {
-      clips.splice(idx, 1);
-      if (!clips.length) { showError('All clips failed to load.'); return; }
-      playClip(getNextIdx(Math.max(0, idx - 1)));
-    };
+    setTimeout(() => {
+      frame.src = `https://clips.twitch.tv/embed?clip=${clip.id}&parent=${HOSTNAME}&autoplay=true&muted=false`;
+      setTimeout(() => {
+        frame.classList.add('visible');
+        document.getElementById('watermark').classList.add('show');
+        clearProgress();
+        startProgress();
+      }, 900);
+    }, 400);
   }
 
   function nextClip() {
     clearProgress();
     document.getElementById('watermark').classList.remove('show');
-    playClip(getNextIdx(currentIdx));
+    const frame = document.getElementById('clip-frame');
+    frame.classList.remove('visible');
+    setTimeout(() => {
+      frame.src = '';
+      setTimeout(() => playClip(getNextIdx(currentIdx)), 400);
+    }, 600);
   }
 
   function startProgress() {

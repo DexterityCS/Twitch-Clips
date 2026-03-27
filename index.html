@@ -433,11 +433,19 @@
   <div class="obs-url-box" id="obs-url">Generating...</div>
   <button class="obs-copy-btn" id="obs-copy-btn" onclick="copyObsUrl()">Copy URL</button>
   <div class="obs-steps">
-    <strong>In OBS:</strong> Sources → + → Browser Source<br>
+    <strong>Step 1 — Add the source</strong><br>
+    Sources → + → Browser Source<br>
     Paste URL → Width: <strong>1920</strong> → Height: <strong>1080</strong><br>
-    ✓ <strong>Control audio via OBS</strong> (restores clip audio)<br>
-    ✓ Shutdown source when not visible<br>
-    ✓ Refresh browser when scene becomes active
+    ✓ Refresh browser when scene becomes active<br><br>
+    <strong>Step 2 — Enable autoplay (one-time setup)</strong><br>
+    Clips will be paused by default due to browser autoplay restrictions.<br>
+    To fix this permanently, close OBS then relaunch it with this flag:<br><br>
+    <span style="display:block;background:rgba(255,255,255,0.06);border-radius:4px;padding:7px 10px;font-family:monospace;font-size:10px;color:rgba(255,255,255,0.7);word-break:break-all;margin:2px 0;user-select:all" id="obs-flag-win">--disable-features=AutoplayIgnoreWebAudio</span>
+    <button class="obs-copy-btn" style="margin-top:6px;margin-bottom:10px" onclick="copyFlag()">Copy Flag</button>
+    <strong style="display:block;margin-bottom:4px">Windows:</strong>
+    Right-click OBS shortcut → Properties → add the flag to the end of the <strong>Target</strong> field.<br><br>
+    <strong>Mac:</strong> Open Terminal and run:<br>
+    <span style="display:block;background:rgba(255,255,255,0.06);border-radius:4px;padding:7px 10px;font-family:monospace;font-size:10px;color:rgba(255,255,255,0.7);word-break:break-all;margin:4px 0;user-select:all">open -a OBS --args --disable-features=AutoplayIgnoreWebAudio</span>
   </div>
 </div>
 
@@ -613,6 +621,18 @@
     });
     const url = base + '?' + params.toString();
     document.getElementById('obs-url').textContent = url;
+  }
+
+  function copyFlag() {
+    navigator.clipboard.writeText('--disable-features=AutoplayIgnoreWebAudio');
+    const btns = document.querySelectorAll('#obs-panel .obs-copy-btn');
+    btns.forEach(b => {
+      if (b.textContent === 'Copy Flag') {
+        b.textContent = 'Copied!';
+        b.classList.add('copied');
+        setTimeout(() => { b.textContent = 'Copy Flag'; b.classList.remove('copied'); }, 2000);
+      }
+    });
   }
 
   function copyObsUrl() {
