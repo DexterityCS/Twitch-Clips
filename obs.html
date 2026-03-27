@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <title>Clip Wall — OBS Overlay</title>
+<script src="https://player.twitch.tv/js/embed/v1.js"></script>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
-
   body {
     background: transparent;
     width: 1920px; height: 1080px;
@@ -13,77 +13,50 @@
     font-family: 'Segoe UI', sans-serif;
   }
 
-  /* Clip iframe fills the whole view */
-  #clip-frame {
-    position: fixed;
-    inset: 0; width: 100%; height: 100%;
-    border: none;
-    opacity: 0;
-    transition: opacity 0.6s ease;
+  #player-wrap {
+    position: fixed; inset: 0;
+    opacity: 0; transition: opacity 0.6s ease;
   }
-  #clip-frame.visible { opacity: 1; }
+  #player-wrap.visible { opacity: 1; }
+  #player-wrap iframe {
+    width: 100%; height: 100%; border: none;
+  }
 
-  /* Progress bar — bottom of screen */
   #progress {
-    position: fixed;
-    bottom: 0; left: 0;
+    position: fixed; bottom: 0; left: 0;
     height: 4px; width: 0%;
-    z-index: 10;
-    border-radius: 0 2px 2px 0;
+    z-index: 10; border-radius: 0 2px 2px 0;
   }
 
-  /* Channel watermark — bottom left */
   #watermark {
-    position: fixed;
-    bottom: 18px; left: 20px;
+    position: fixed; bottom: 18px; left: 20px;
     display: flex; align-items: center; gap: 10px;
-    z-index: 10;
-    opacity: 0;
-    transition: opacity 0.5s ease;
+    z-index: 10; opacity: 0; transition: opacity 0.5s ease;
   }
   #watermark.show { opacity: 1; }
-
   #watermark-avatar {
-    width: 32px; height: 32px;
-    border-radius: 50%;
-    border: 2px solid rgba(255,255,255,0.3);
-    object-fit: cover;
+    width: 32px; height: 32px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.3); object-fit: cover;
   }
-
-  #watermark-text {
-    display: flex; flex-direction: column; gap: 1px;
-  }
-
   #watermark-label {
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    color: rgba(255,255,255,0.5);
+    font-size: 10px; font-weight: 600; letter-spacing: 2px;
+    text-transform: uppercase; color: rgba(255,255,255,0.5);
   }
-
   #watermark-name {
-    font-size: 15px;
-    font-weight: 700;
-    color: #fff;
-    letter-spacing: 0.5px;
-    text-shadow: 0 1px 6px rgba(0,0,0,0.8);
+    font-size: 15px; font-weight: 700; color: #fff;
+    letter-spacing: 0.5px; text-shadow: 0 1px 6px rgba(0,0,0,0.8);
   }
 
-  /* Loading state */
   #loader {
-    position: fixed; inset: 0;
-    background: #000;
+    position: fixed; inset: 0; background: #000;
     display: flex; align-items: center; justify-content: center;
-    z-index: 20;
-    transition: opacity 0.5s;
+    z-index: 20; transition: opacity 0.5s;
   }
   #loader.hidden { opacity: 0; pointer-events: none; }
   .loader-dot {
     width: 8px; height: 8px; border-radius: 50%;
     background: rgba(255,255,255,0.3);
-    animation: dotPulse 1.2s ease infinite;
-    margin: 0 4px;
+    animation: dotPulse 1.2s ease infinite; margin: 0 4px;
   }
   .loader-dot:nth-child(2) { animation-delay: 0.2s; }
   .loader-dot:nth-child(3) { animation-delay: 0.4s; }
@@ -92,15 +65,11 @@
     40% { transform: scale(1); opacity: 1; }
   }
 
-  /* Error state */
   #error {
-    position: fixed; inset: 0;
-    background: #000;
+    position: fixed; inset: 0; background: #000;
     display: none; align-items: center; justify-content: center;
     flex-direction: column; gap: 12px;
-    color: rgba(255,255,255,0.4);
-    font-size: 13px; letter-spacing: 1px;
-    z-index: 20;
+    color: rgba(255,255,255,0.4); font-size: 13px; z-index: 20;
   }
   #error.show { display: flex; }
 </style>
@@ -115,82 +84,77 @@
 
 <div id="error">
   <div style="font-size:28px">⚠️</div>
-  <div id="error-msg">Could not load clips. Check your URL parameters.</div>
+  <div id="error-msg">Could not load clips.</div>
 </div>
 
-<iframe id="clip-frame" allowfullscreen allow="autoplay; encrypted-media"></iframe>
-
+<div id="player-wrap"></div>
 <div id="progress"></div>
 
 <div id="watermark">
   <img id="watermark-avatar" src="" alt="" />
-  <div id="watermark-text">
+  <div>
     <div id="watermark-label">Now Playing</div>
     <div id="watermark-name"></div>
   </div>
 </div>
 
 <script>
-  // ── READ URL PARAMS ──
-  const params  = new URLSearchParams(location.search);
+  const params   = new URLSearchParams(location.search);
   const TOKEN    = params.get('token')     || '';
   const CLIENT_ID= params.get('client_id') || '';
   const CHANNEL  = params.get('channel')   || '';
   const DURATION = parseInt(params.get('duration') || '30') * 1000;
   const ACCENT   = '#' + (params.get('accent')  || 'a855f7');
   const ACCENT2  = '#' + (params.get('accent2') || 'ec4899');
-  const HOSTNAME = location.hostname;
 
-  // Apply accent colours
   document.getElementById('progress').style.background =
     `linear-gradient(90deg, ${ACCENT}, ${ACCENT2})`;
   document.getElementById('progress').style.boxShadow =
     `0 0 8px ${ACCENT}`;
 
   let clips = [], currentIdx = 0, progressTimer = null;
+  let player = null;
 
-  // ── SHOW ERROR ──
   function showError(msg) {
     document.getElementById('loader').classList.add('hidden');
     document.getElementById('error-msg').textContent = msg;
     document.getElementById('error').classList.add('show');
   }
 
-  // ── FETCH USER + CLIPS ──
   async function init() {
     if (!TOKEN || !CLIENT_ID || !CHANNEL) {
-      showError('Missing URL parameters. Regenerate the OBS URL from the Clip Wall setup page.');
+      showError('Missing URL parameters. Regenerate the OBS URL from the setup page.');
       return;
     }
 
     const headers = { 'Authorization': `Bearer ${TOKEN}`, 'Client-Id': CLIENT_ID };
 
     try {
-      // Get user info for avatar + display name
-      const userRes = await fetch(`https://api.twitch.tv/helix/users?login=${CHANNEL}`, { headers });
+      const userRes  = await fetch(`https://api.twitch.tv/helix/users?login=${CHANNEL}`, { headers });
       const userData = await userRes.json();
-      const user = userData.data?.[0];
+      const user     = userData.data?.[0];
       if (!user) throw new Error('Channel not found');
 
-      // Show watermark
       document.getElementById('watermark-avatar').src = user.profile_image_url || '';
       document.getElementById('watermark-name').textContent = user.display_name || CHANNEL;
 
-      // Fetch clips
       const ago30 = new Date(Date.now() - 30*24*60*60*1000).toISOString();
       const [topRes, recentRes] = await Promise.all([
         fetch(`https://api.twitch.tv/helix/clips?broadcaster_id=${user.id}&first=50`, { headers }),
         fetch(`https://api.twitch.tv/helix/clips?broadcaster_id=${user.id}&first=50&started_at=${ago30}`, { headers })
       ]);
 
-      const all = [...(await topRes.json()).data||[], ...(await recentRes.json()).data||[]];
+      const all  = [...(await topRes.json()).data||[], ...(await recentRes.json()).data||[]];
       const seen = new Set();
-      clips = shuffle(all.filter(c => { if(seen.has(c.id)) return false; seen.add(c.id); return true; }));
+      clips = shuffle(all.filter(c => {
+        if (seen.has(c.id)) return false;
+        seen.add(c.id); return true;
+      }));
 
       if (!clips.length) throw new Error('No clips found for ' + CHANNEL);
 
       document.getElementById('loader').classList.add('hidden');
-      playClip(0);
+      initPlayer(clips[0]);
 
     } catch(e) {
       showError(e.message);
@@ -201,44 +165,87 @@
     const a = [...arr];
     for (let i=a.length-1; i>0; i--) {
       const j = Math.floor(Math.random()*(i+1));
-      [a[i],a[j]] = [a[j],a[i]];
+      [a[i],a[j]]=[a[j],a[i]];
     }
     return a;
   }
 
-  // ── PLAYBACK ──
+  function initPlayer(clip) {
+    // Create Twitch Player instance — gives us JS control over play/mute
+    player = new Twitch.Player('player-wrap', {
+      clip: clip.id,
+      width: '100%',
+      height: '100%',
+      autoplay: true,
+      muted: false,
+      allowfullscreen: false,
+      parent: [location.hostname]
+    });
+
+    player.addEventListener(Twitch.Player.READY, () => {
+      player.setMuted(false);
+      player.play();
+      document.getElementById('player-wrap').classList.add('visible');
+      document.getElementById('watermark').classList.add('show');
+      startProgress();
+    });
+
+    player.addEventListener(Twitch.Player.PAUSE, () => {
+      // Auto-resume if paused by the player itself (e.g. autoplay block)
+      setTimeout(() => {
+        try { player.play(); } catch(e) {}
+      }, 200);
+    });
+  }
+
   function playClip(idx) {
     currentIdx = idx;
     const clip = clips[idx];
-    const frame = document.getElementById('clip-frame');
 
-    frame.classList.remove('visible');
+    document.getElementById('player-wrap').classList.remove('visible');
+    document.getElementById('watermark').classList.remove('show');
 
     setTimeout(() => {
-      frame.src = `https://clips.twitch.tv/embed?clip=${clip.id}&parent=${HOSTNAME}&autoplay=true&muted=false`;
-      // Give the iframe a moment to load before fading in
-      setTimeout(() => {
-        frame.classList.add('visible');
-        document.getElementById('watermark').classList.add('show');
-      }, 800);
-    }, 300);
+      if (player) {
+        // Swap clip on existing player — faster than recreating
+        player.pause();
+        // Twitch Player API doesn't have setClip, so recreate the player
+        document.getElementById('player-wrap').innerHTML = '';
+        player = null;
+      }
 
-    startProgress();
+      player = new Twitch.Player('player-wrap', {
+        clip: clip.id,
+        width: '100%',
+        height: '100%',
+        autoplay: true,
+        muted: false,
+        allowfullscreen: false,
+        parent: [location.hostname]
+      });
+
+      player.addEventListener(Twitch.Player.READY, () => {
+        player.setMuted(false);
+        player.play();
+        document.getElementById('player-wrap').classList.add('visible');
+        document.getElementById('watermark').classList.add('show');
+      });
+
+      // Auto-resume on any pause event
+      player.addEventListener(Twitch.Player.PAUSE, () => {
+        setTimeout(() => { try { player.play(); } catch(e) {} }, 200);
+      });
+
+    }, 500);
   }
 
   function nextClip() {
     clearProgress();
-    document.getElementById('watermark').classList.remove('show');
-    const frame = document.getElementById('clip-frame');
-    frame.classList.remove('visible');
-
-    setTimeout(() => {
-      frame.src = '';
-      let next;
-      do { next = Math.floor(Math.random() * clips.length); }
-      while (next === currentIdx && clips.length > 1);
-      setTimeout(() => playClip(next), 400);
-    }, 600);
+    let next;
+    do { next = Math.floor(Math.random() * clips.length); }
+    while (next === currentIdx && clips.length > 1);
+    playClip(next);
+    setTimeout(() => startProgress(), 1200);
   }
 
   function startProgress() {
@@ -246,7 +253,7 @@
     bar.style.transition = 'none'; bar.style.width = '0%';
     const start = performance.now();
     const tick = now => {
-      const pct = Math.min((now - start) / DURATION * 100, 100);
+      const pct = Math.min((now-start)/DURATION*100, 100);
       bar.style.width = pct + '%';
       if (pct < 100) progressTimer = requestAnimationFrame(tick);
       else nextClip();
