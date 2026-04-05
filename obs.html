@@ -212,11 +212,17 @@
     const prevVid = activeSlot === 'a' ? vidA : vidB;
 
     nextVid.src    = clip.mp4;
-    nextVid.muted  = false;
+    nextVid.muted  = true;  // start muted so OBS allows autoplay
     nextVid.volume = 1;
 
     nextVid.oncanplay = () => {
-      nextVid.play().catch(() => { nextVid.muted = true; nextVid.play(); });
+      nextVid.play().then(() => {
+        // Unmute immediately after play starts — works because playback is already running
+        nextVid.muted = false;
+      }).catch(() => {
+        // If still blocked, stay muted but keep playing
+        nextVid.muted = true;
+      });
       nextVid.classList.add('active');
       prevVid.classList.remove('active');
       activeSlot = activeSlot === 'a' ? 'b' : 'a';
